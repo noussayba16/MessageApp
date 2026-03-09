@@ -82,7 +82,7 @@ public class Database implements IDatabase {
 	 *
 	 * @param messageToRemove
 	 */
-	protected void deleteMessage(Message messageToRemove) {
+	public void deleteMessage(Message messageToRemove) {
 		// Suppression du message
 		this.mMessages.remove(messageToRemove);
 
@@ -128,7 +128,7 @@ public class Database implements IDatabase {
 	 *
 	 * @param userToRemove
 	 */
-	protected void deleteUser(User userToRemove) {
+    public void deleteUser(User userToRemove) {
 		// Suppression de l'utilisateur
 		this.mUsers.remove(userToRemove);
 
@@ -143,7 +143,7 @@ public class Database implements IDatabase {
 	 *
 	 * @param userToModify
 	 */
-	protected void modifiyUser(User userToModify) {
+    public void modifiyUser(User userToModify) {
 		// Ré-ajout pour écraser l'ancienne copie.
 		this.mUsers.remove(userToModify);
 		this.mUsers.add(userToModify);
@@ -218,7 +218,10 @@ public class Database implements IDatabase {
 	}
 
 	@Override
-	public void removeObserver(IDatabaseObserver observer) {
+	public void removeObserver(main.java.com.ubo.tp.message.core.database.IDatabaseObserver observer) {
 		this.mObservers.remove(observer);
 	}
+
+
+
 }

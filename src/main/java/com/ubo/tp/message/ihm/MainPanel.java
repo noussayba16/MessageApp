@@ -7,6 +7,7 @@ import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
 import main.java.com.ubo.tp.message.ihm.channel.ChannelListPanel;
+import main.java.com.ubo.tp.message.ihm.message.MessageInputPanel;
 import main.java.com.ubo.tp.message.ihm.message.MessageListPanel;
 
 import javax.swing.*;
@@ -26,12 +27,23 @@ public class MainPanel extends JPanel {
     private ChannelListPanel channelListPanel;
 
     private MessageListPanel messageListPanel;
-    private JTextField messageField;
+    private MessageInputPanel messageInputPanel;
+
+    private JTextField searchField;
+    private JButton searchButton;
+
+    private JTextField userSearchField;
+    private JButton userSearchButton;
+
+    private JLabel lblWelcome;
 
     private User selectedUser = null;
     private Channel selectedChannel = null;
 
     private Set<Message> currentConversation = new HashSet<>();
+    private Set<String> notifiedMessages = new HashSet<>();
+
+    private Timer refreshTimer;
 
     public MainPanel(User user,
                      UserController userController,
@@ -47,185 +59,495 @@ public class MainPanel extends JPanel {
         // ===== HEADER =====
         JPanel topPanel = new JPanel(new BorderLayout());
 
-        JLabel lblWelcome = new JLabel(
+        lblWelcome = new JLabel(
                 "Bienvenue " + user.getName() + " !",
                 SwingConstants.CENTER
         );
         lblWelcome.setFont(new Font("Arial", Font.BOLD, 20));
 
+        JPanel topButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+
+        JButton btnModifierNom = new JButton("Modifier mon nom");
+        btnModifierNom.addActionListener(e -> modifierMonNom());
+
+        JButton btnSupprimerCompte = new JButton("Supprimer mon compte");
+        btnSupprimerCompte.addActionListener(e -> supprimerMonCompte());
+
         JButton btnLogout = new JButton("Déconnexion");
-        btnLogout.addActionListener(e -> session.disconnect());
+        btnLogout.addActionListener(e -> {
+            stopRefreshTimer();
+            session.disconnect();
+        });
+
+        topButtonsPanel.add(btnModifierNom);
+        topButtonsPanel.add(btnSupprimerCompte);
+        topButtonsPanel.add(btnLogout);
 
         topPanel.add(lblWelcome, BorderLayout.CENTER);
-        topPanel.add(btnLogout, BorderLayout.EAST);
+        topPanel.add(topButtonsPanel, BorderLayout.EAST);
 
         add(topPanel, BorderLayout.NORTH);
 
-        // ===== USERS =====
+        // ===== USERS PANEL + SEARCH USER =====
+        JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
+        leftPanel.setPreferredSize(new Dimension(240, 0));
+
+        JPanel userSearchPanel = new JPanel(new BorderLayout(5, 5));
+        userSearchField = new JTextField();
+        userSearchButton = new JButton("Rechercher");
+
+        userSearchButton.addActionListener(e -> rechercherUtilisateur());
+        userSearchField.addActionListener(e -> rechercherUtilisateur());
+
+        userSearchPanel.add(userSearchField, BorderLayout.CENTER);
+        userSearchPanel.add(userSearchButton, BorderLayout.EAST);
+
         userModel = new DefaultListModel<>();
-
-        for (User u : userController.getAllUsers()) {
-            userModel.addElement(u);
-        }
-
         userList = new JList<>(userModel);
         userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        JScrollPane userScroll = new JScrollPane(userList);
-        userScroll.setPreferredSize(new Dimension(220, 0));
+        chargerUtilisateurs("");
 
-        add(userScroll, BorderLayout.WEST);
+        JScrollPane userScroll = new JScrollPane(userList);
+
+        leftPanel.add(userSearchPanel, BorderLayout.NORTH);
+        leftPanel.add(userScroll, BorderLayout.CENTER);
+
+        add(leftPanel, BorderLayout.WEST);
 
         // ===== CHANNELS =====
         channelListPanel = new ChannelListPanel(dataManager, session);
         add(channelListPanel, BorderLayout.EAST);
 
-        // ===== MESSAGES =====
+        // ===== MESSAGE AREA =====
+        JPanel centerPanel = new JPanel(new BorderLayout());
+
+        JPanel searchPanel = new JPanel(new BorderLayout(5, 5));
+        searchField = new JTextField();
+        searchButton = new JButton("Rechercher");
+
+        searchButton.addActionListener(e -> rechercherMessages());
+        searchField.addActionListener(e -> rechercherMessages());
+
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        searchPanel.add(searchButton, BorderLayout.EAST);
+
+        centerPanel.add(searchPanel, BorderLayout.NORTH);
+
         messageListPanel = new MessageListPanel();
-        add(new JScrollPane(messageListPanel), BorderLayout.CENTER);
+        centerPanel.add(new JScrollPane(messageListPanel), BorderLayout.CENTER);
+
+        add(centerPanel, BorderLayout.CENTER);
 
         // ===== USER SELECTION =====
         userList.addListSelectionListener(e -> {
-
             if (!e.getValueIsAdjusting()) {
-
                 selectedUser = userList.getSelectedValue();
                 selectedChannel = null;
 
                 if (selectedUser != null) {
                     chargerConversationUser(selectedUser);
                 }
-
             }
         });
 
         // ===== CHANNEL SELECTION =====
         channelListPanel.getChannelList().addListSelectionListener(e -> {
-
             if (!e.getValueIsAdjusting()) {
-
                 selectedChannel = channelListPanel.getSelectedChannel();
                 selectedUser = null;
 
                 if (selectedChannel != null) {
                     chargerConversationChannel(selectedChannel);
                 }
-
             }
         });
 
         // ===== INPUT =====
-        JPanel bottomPanel = new JPanel(new BorderLayout(8, 8));
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
+        messageInputPanel = new MessageInputPanel();
+        messageInputPanel.setSendAction(this::envoyerMessage);
+        add(messageInputPanel, BorderLayout.SOUTH);
 
-        messageField = new JTextField();
+        // ===== AUTO REFRESH =====
+        refreshTimer = new Timer(2000, e -> rafraichirMessages());
+        refreshTimer.start();
+    }
 
-        JButton sendButton = new JButton("Envoyer");
-        sendButton.addActionListener(e -> envoyerMessage());
+    private void stopRefreshTimer() {
+        if (refreshTimer != null && refreshTimer.isRunning()) {
+            refreshTimer.stop();
+        }
+    }
 
-        bottomPanel.add(messageField, BorderLayout.CENTER);
-        bottomPanel.add(sendButton, BorderLayout.EAST);
+    // ================= AUTO REFRESH =================
+    private void rafraichirMessages() {
 
-        add(bottomPanel, BorderLayout.SOUTH);
+        if (session.getConnectedUser() == null) {
+            stopRefreshTimer();
+            return;
+        }
+
+        if (selectedUser != null) {
+            chargerConversationUser(selectedUser);
+        } else if (selectedChannel != null) {
+            chargerConversationChannel(selectedChannel);
+        }
+    }
+
+    // ================= USERS =================
+    private void chargerUtilisateurs(String keyword) {
+
+        if (session.getConnectedUser() == null) {
+            return;
+        }
+
+        userModel.clear();
+
+        String filtre = keyword == null ? "" : keyword.trim().toLowerCase();
+
+        for (User u : userController.getAllUsers()) {
+
+            if (u.getUuid().equals(session.getConnectedUser().getUuid())) {
+                continue;
+            }
+
+            if (filtre.isEmpty()
+                    || u.getUserTag().toLowerCase().contains(filtre)
+                    || u.getName().toLowerCase().contains(filtre)) {
+                userModel.addElement(u);
+            }
+        }
+    }
+
+    private void rechercherUtilisateur() {
+        chargerUtilisateurs(userSearchField.getText());
+    }
+
+    private void modifierMonNom() {
+
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null) {
+            return;
+        }
+
+        String nouveauNom = JOptionPane.showInputDialog(
+                this,
+                "Nouveau nom d'utilisateur :",
+                connectedUser.getName()
+        );
+
+        if (nouveauNom == null) {
+            return;
+        }
+
+        nouveauNom = nouveauNom.trim();
+
+        if (nouveauNom.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Le nom ne peut pas être vide."
+            );
+            return;
+        }
+
+        User userModifie = new User(
+                connectedUser.getUuid(),
+                connectedUser.getUserTag(),
+                connectedUser.getUserPassword(),
+                nouveauNom
+        );
+
+        dataManager.modifyUser(connectedUser.getUuid(), userModifie);
+
+        lblWelcome.setText("Bienvenue " + nouveauNom + " !");
+
+        JOptionPane.showMessageDialog(
+                this,
+                "Nom modifié avec succès."
+        );
+
+        chargerUtilisateurs(userSearchField.getText());
+    }
+
+    private void supprimerMonCompte() {
+
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null) {
+            return;
+        }
+
+        int choix = JOptionPane.showConfirmDialog(
+                this,
+                "Voulez-vous vraiment supprimer votre compte ?",
+                "Confirmation",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (choix != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        stopRefreshTimer();
+        dataManager.deleteUser(connectedUser);
+
+        JOptionPane.showMessageDialog(
+                this,
+                "Votre compte a été supprimé."
+        );
+
+        session.disconnect();
     }
 
     // ================= USER CONVERSATION =================
     private void chargerConversationUser(User user) {
 
-        currentConversation.clear();
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null || user == null) {
+            return;
+        }
+
+        Set<Message> nouvelleConversation = new HashSet<>();
 
         Set<Message> sent = dataManager.getMessagesFrom(
-                session.getConnectedUser(),
+                connectedUser,
                 user
         );
 
         Set<Message> received = dataManager.getMessagesFrom(
                 user,
-                session.getConnectedUser()
+                connectedUser
         );
 
-        currentConversation.addAll(sent);
-        currentConversation.addAll(received);
+        if (sent != null) {
+            nouvelleConversation.addAll(sent);
+        }
+
+        if (received != null) {
+            nouvelleConversation.addAll(received);
+        }
+
+        currentConversation = nouvelleConversation;
 
         messageListPanel.refresh(
                 currentConversation,
-                session.getConnectedUser().getUserTag()
+                connectedUser.getUserTag(),
+                this::supprimerMessage
         );
+
+        verifierNotifications(currentConversation);
     }
 
     // ================= CHANNEL CONVERSATION =================
     private void chargerConversationChannel(Channel channel) {
 
-        currentConversation.clear();
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null || channel == null) {
+            return;
+        }
+
+        Set<Message> nouvelleConversation = new HashSet<>();
 
         for (Message m : dataManager.getMessages()) {
-
             if (m.getRecipient().equals(channel.getUuid())) {
-                currentConversation.add(m);
+                nouvelleConversation.add(m);
             }
-
         }
+
+        currentConversation = nouvelleConversation;
 
         messageListPanel.refresh(
                 currentConversation,
-                session.getConnectedUser().getUserTag()
+                connectedUser.getUserTag(),
+                this::supprimerMessage
+        );
+
+        verifierNotifications(currentConversation);
+    }
+
+    // ================= SEARCH MESSAGES =================
+    private void rechercherMessages() {
+
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null) {
+            return;
+        }
+
+        String keyword = searchField.getText();
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            messageListPanel.refresh(
+                    currentConversation,
+                    connectedUser.getUserTag(),
+                    this::supprimerMessage
+            );
+            return;
+        }
+
+        Set<Message> filtered = new HashSet<>();
+
+        for (Message m : new HashSet<>(currentConversation)) {
+            if (m.getText() != null &&
+                    m.getText().toLowerCase().contains(keyword.toLowerCase())) {
+                filtered.add(m);
+            }
+        }
+
+        messageListPanel.refresh(
+                filtered,
+                connectedUser.getUserTag(),
+                this::supprimerMessage
         );
     }
 
     // ================= SEND MESSAGE =================
     private void envoyerMessage() {
 
-        String content = messageField.getText();
+        User connectedUser = session.getConnectedUser();
 
-        if (content == null || content.trim().isEmpty()) {
+        if (connectedUser == null) {
+            return;
+        }
+
+        String content = messageInputPanel.getMessageText();
+        String imagePath = messageInputPanel.getImagePath();
+
+        if (content == null) {
+            content = "";
+        }
+
+        if (content.length() > 200) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Un message ne peut pas dépasser 200 caractères."
+            );
+            return;
+        }
+
+        if (content.trim().isEmpty() && imagePath == null) {
             return;
         }
 
         Message message;
 
-        // ===== PRIVATE MESSAGE =====
         if (selectedUser != null) {
-
             message = new Message(
-                    session.getConnectedUser(),
+                    connectedUser,
                     selectedUser.getUuid(),
-                    content.trim()
+                    content.trim(),
+                    imagePath
             );
-
             dataManager.sendMessage(message);
 
-        }
-        // ===== CHANNEL MESSAGE =====
-        else if (selectedChannel != null) {
-
+        } else if (selectedChannel != null) {
             message = new Message(
-                    session.getConnectedUser(),
+                    connectedUser,
                     selectedChannel.getUuid(),
-                    content.trim()
+                    content.trim(),
+                    imagePath
             );
-
             dataManager.sendMessage(message);
 
-        }
-        // ===== NO DESTINATION =====
-        else {
-
+        } else {
             JOptionPane.showMessageDialog(
                     this,
                     "Sélectionnez un utilisateur ou un canal !"
             );
-
             return;
         }
 
-        // Ajout immédiat dans la conversation
         currentConversation.add(message);
 
         messageListPanel.refresh(
                 currentConversation,
-                session.getConnectedUser().getUserTag()
+                connectedUser.getUserTag(),
+                this::supprimerMessage
+        );
+    }
+
+    // ================= DELETE MESSAGE =================
+    private void supprimerMessage(Message message) {
+
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null || message == null) {
+            return;
+        }
+
+        if (!message.getSender().getUuid().equals(connectedUser.getUuid())) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Vous ne pouvez supprimer que vos propres messages."
+            );
+            return;
+        }
+
+        int choix = JOptionPane.showConfirmDialog(
+                this,
+                "Voulez-vous vraiment supprimer ce message ?",
+                "Confirmation",
+                JOptionPane.YES_NO_OPTION
         );
 
-        messageField.setText("");
+        if (choix != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        dataManager.deleteMessage(message);
+        currentConversation.remove(message);
+
+        messageListPanel.refresh(
+                currentConversation,
+                connectedUser.getUserTag(),
+                this::supprimerMessage
+        );
+    }
+
+    // ================= NOTIFICATIONS =================
+    private void verifierNotifications(Set<Message> messages) {
+
+        User connectedUser = session.getConnectedUser();
+
+        if (connectedUser == null) {
+            return;
+        }
+
+        Set<Message> copie = new HashSet<>(messages);
+
+        for (Message m : copie) {
+
+            if (m.getSender().getUuid().equals(connectedUser.getUuid())) {
+                continue;
+            }
+
+            if (notifiedMessages.contains(m.getUuid().toString())) {
+                continue;
+            }
+
+            notifiedMessages.add(m.getUuid().toString());
+
+            if (selectedUser != null
+                    && m.getSender().getUuid().equals(selectedUser.getUuid())
+                    && m.getRecipient().equals(connectedUser.getUuid())) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Nouveau message de " + m.getSender().getUserTag()
+                );
+            }
+
+            if (m.getText() != null
+                    && m.getText().contains("@" + connectedUser.getUserTag())) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Vous avez été mentionné dans un message."
+                );
+            }
+        }
     }
 }

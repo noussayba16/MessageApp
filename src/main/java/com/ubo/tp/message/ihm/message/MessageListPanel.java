@@ -7,31 +7,32 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class MessageListPanel extends JPanel {
 
     public MessageListPanel() {
-
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
     }
 
-    public void refresh(Set<Message> messages, String currentUserTag) {
+    public void refresh(Set<Message> messages, String currentUserTag, Consumer<Message> onDelete) {
 
         removeAll();
 
-        // Convertir en liste
         List<Message> list = new ArrayList<>(messages);
-
-        // Trier les messages par date
         list.sort(Comparator.comparingLong(Message::getEmissionDate));
 
-        for(Message m : list) {
+        for (Message m : list) {
 
             boolean isMe = m.getSender()
                     .getUserTag()
                     .equals(currentUserTag);
 
-            add(new MessagePanel(m, isMe));
+            add(new main.java.com.ubo.tp.message.ihm.message.MessagePanel(
+                    m,
+                    isMe,
+                    () -> onDelete.accept(m)
+            ));
 
             add(Box.createVerticalStrut(8));
         }

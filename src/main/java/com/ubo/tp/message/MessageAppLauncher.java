@@ -1,4 +1,4 @@
-package main.java.com.ubo.tp.message;
+package com.ubo.tp.message;
 
 import main.java.com.ubo.tp.message.core.DataManager;
 import main.java.com.ubo.tp.message.core.database.ConsoleDatabase;
@@ -20,6 +20,7 @@ public class MessageAppLauncher {
 	 * Indique si le mode bouchoné est activé.
 	 */
 	protected static boolean IS_MOCK_ENABLED = false;
+
 
 	/**
 	 * Launcher.

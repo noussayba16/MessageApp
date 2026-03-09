@@ -2,6 +2,7 @@ package main.java.com.ubo.tp.message.core;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import main.java.com.ubo.tp.message.core.database.Database;
 import main.java.com.ubo.tp.message.core.database.EntityManager;
@@ -75,7 +76,6 @@ public class DataManager {
         Set<Message> userMessages = new HashSet<>();
 
         for (Message message : getMessagesFrom(sender)) {
-
             if (message.getRecipient().equals(recipient.getUuid())) {
                 userMessages.add(message);
             }
@@ -89,7 +89,6 @@ public class DataManager {
         Set<Message> userMessages = new HashSet<>();
 
         for (Message message : getMessages()) {
-
             if (message.getRecipient().equals(user.getUuid())) {
                 userMessages.add(message);
             }
@@ -122,7 +121,6 @@ public class DataManager {
         }
 
         User newUser = new User(tag, password, name);
-
         mEntityManager.writeUserFile(newUser);
 
         return newUser;
@@ -131,7 +129,6 @@ public class DataManager {
     public User getUser(String tag) {
 
         for (User user : getUsers()) {
-
             if (user.getUserTag().equals(tag)) {
                 return user;
             }
@@ -140,36 +137,68 @@ public class DataManager {
         return null;
     }
 
-    public void modifyUser(java.util.UUID uuid, User modifiedUser) {
+    public void modifyUser(UUID uuid, User modifiedUser) {
 
-        if (modifiedUser != null) {
-            mEntityManager.writeUserFile(modifiedUser);
+        if (modifiedUser == null) {
+            return;
+        }
+
+        mEntityManager.writeUserFile(modifiedUser);
+
+        if (mDatabase instanceof Database db) {
+            db.modifiyUser(modifiedUser);
         }
     }
 
-    public void deleteUser(User user) {}
+    public void deleteUser(User user) {
+
+        if (user == null) {
+            return;
+        }
+
+        mEntityManager.deleteUserFile(user);
+
+        if (mDatabase instanceof Database db) {
+            db.deleteUser(user);
+        }
+    }
 
     // ===== CHANNEL =====
 
     public void addChannel(Channel channel) {
 
-        if (channel == null)
+        if (channel == null) {
             return;
+        }
 
         sendChannel(channel);
     }
 
     public void removeChannel(Channel channel) {
 
-        if (channel == null)
+        if (channel == null) {
             return;
+        }
 
-        // supprimer le fichier
         mEntityManager.deleteChannelFile(channel);
 
-        // 🔥 supprimer immédiatement dans la base
         if (mDatabase instanceof Database db) {
             db.deleteChannel(channel);
+        }
+    }
+
+    // ===== MESSAGE =====
+
+    public void deleteMessage(Message message) {
+
+        if (message == null) {
+            return;
+        }
+
+        mEntityManager.deleteMessageFile(message);
+
+        if (mDatabase instanceof Database db) {
+            db.deleteMessage(message);
         }
     }
 }
