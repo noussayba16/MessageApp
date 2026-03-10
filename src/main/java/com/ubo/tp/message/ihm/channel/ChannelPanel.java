@@ -1,6 +1,5 @@
 package main.java.com.ubo.tp.message.ihm.channel;
 
-
 import main.java.com.ubo.tp.message.datamodel.Channel;
 
 import javax.swing.*;
@@ -18,5 +17,17 @@ public class ChannelPanel extends JPanel {
         nameLabel.setFont(new Font("Arial", Font.BOLD, 13));
 
         add(nameLabel, BorderLayout.CENTER);
+
+        JLabel typeLabel = new JLabel();
+
+        if(channel.isPrivate()){
+            typeLabel.setText("🔒 Privé");
+        }else{
+            typeLabel.setText("🌐 Public");
+        }
+
+        typeLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+
+        add(typeLabel, BorderLayout.EAST);
     }
 }

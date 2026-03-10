@@ -153,7 +153,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.sendChannel(channel);
     }
 
-    // ===== SUPPRESSION CANAL =====
     private void deleteChannel() {
 
         Channel selected = channelList.getSelectedValue();
@@ -163,6 +162,16 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             JOptionPane.showMessageDialog(
                     this,
                     "Sélectionnez un canal"
+            );
+            return;
+        }
+
+        // Vérification : seul le propriétaire peut supprimer
+        if(!selected.getCreator().getUuid().equals(session.getConnectedUser().getUuid())){
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Vous ne pouvez supprimer que les canaux dont vous êtes le propriétaire."
             );
             return;
         }

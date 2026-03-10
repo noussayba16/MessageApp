@@ -36,7 +36,7 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	/**
 	 * Constructeur.
 	 *
-	 * @param sender utilisateur à l'origine du canal.
+	 * @param creator utilisateur à l'origine du canal.
 	 * @param name   Nom du canal.
 	 */
 	public Channel(User creator, String name) {
@@ -47,7 +47,7 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	 * Constructeur.
 	 *
 	 * @param channelUuid identifiant du canal.
-	 * @param sender      utilisateur à l'origine du canal.
+	 * @param creator      utilisateur à l'origine du canal.
 	 * @param name        Nom du canal.
 	 */
 	public Channel(UUID channelUuid, User creator, String name) {
@@ -59,7 +59,7 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	/**
 	 * Constructeur pour un canal privé.
 	 *
-	 * @param sender utilisateur à l'origine du canal.
+	 * @param creator utilisateur à l'origine du canal.
 	 * @param name   Nom du canal.
 	 */
 	public Channel(User creator, String name, List<User> users) {
@@ -70,13 +70,12 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	 * Constructeur pour un canal privé.
 	 *
 	 * @param channelUuid identifiant du canal.
-	 * @param sender      utilisateur à l'origine du canal.
+	 * @param creator      utilisateur à l'origine du canal.
 	 * @param name        Nom du canal.
 	 * @param users       Liste des utilisateurs du canal privé.
-	 * 
 	 */
-	public Channel(UUID messageUuid, User creator, String name, List<User> users) {
-		this(messageUuid, creator, name);
+	public Channel(UUID channelUuid, User creator, String name, List<User> users) {
+		this(channelUuid, creator, name);
 		if (!users.isEmpty()) {
 			mPrivate = true;
 			mUsers.addAll(users);
@@ -84,14 +83,14 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	}
 
 	/**
-	 * @return l'utilisateur source du canal.
+	 * @return l'utilisateur créateur du canal.
 	 */
 	public User getCreator() {
 		return mCreator;
 	}
 
 	/**
-	 * @return le corps du message.
+	 * @return le nom du canal.
 	 */
 	public String getName() {
 		return mName;
@@ -102,6 +101,13 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	 */
 	public List<User> getUsers() {
 		return new ArrayList<User>(mUsers);
+	}
+
+	/**
+	 * @return true si le canal est privé, sinon false.
+	 */
+	public boolean isPrivate() {
+		return mPrivate;
 	}
 
 	/**
@@ -121,5 +127,4 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 
 		return sb.toString();
 	}
-
 }
