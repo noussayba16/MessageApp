@@ -342,7 +342,6 @@ public class MainPanel extends JPanel {
         verifierNotifications(currentConversation);
     }
 
-    // ================= CHANNEL CONVERSATION =================
     private void chargerConversationChannel(Channel channel) {
 
         User connectedUser = session.getConnectedUser();
@@ -351,9 +350,35 @@ public class MainPanel extends JPanel {
             return;
         }
 
+        // Vérifier l'accès au canal privé
+        if (channel.isPrivate()) {
+
+            boolean isCreator = channel.getCreator().getUuid()
+                    .equals(connectedUser.getUuid());
+
+            boolean isMember = channel.getUsers()
+                    .stream()
+                    .anyMatch(u -> u.getUuid().equals(connectedUser.getUuid()));
+
+            if (!isCreator && !isMember) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Vous n'avez pas accès à ce canal privé."
+                );
+
+                // Désélectionner le canal pour éviter que le message revienne
+                selectedChannel = null;
+                channelListPanel.getChannelList().clearSelection();
+
+                return;
+            }
+        }
+
         Set<Message> nouvelleConversation = new HashSet<>();
 
         for (Message m : dataManager.getMessages()) {
+
             if (m.getRecipient().equals(channel.getUuid())) {
                 nouvelleConversation.add(m);
             }
@@ -369,7 +394,6 @@ public class MainPanel extends JPanel {
 
         verifierNotifications(currentConversation);
     }
-
     // ================= SEARCH MESSAGES =================
     private void rechercherMessages() {
 
