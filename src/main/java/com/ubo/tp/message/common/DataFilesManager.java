@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
+import com.sun.jdi.event.ExceptionEvent;
 import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
@@ -288,7 +289,17 @@ public class DataFilesManager {
 		String[] splittedUsers = users.split(USER_SEPARATOR);
 		for (String userId : splittedUsers) {
 			if (!userId.isEmpty()) {
-				userList.add(getUserFromUuid(userId, userMap));
+				User user = null;
+
+				try {
+					user  = getUserFromUuid(userId, userMap);
+				}
+				catch (Exception e)
+				{
+					user = main.java.com.ubo.tp.message.common.Constants.UNKNOWN_USER;
+				}
+
+				userList.add(user);
 			}
 		}
 

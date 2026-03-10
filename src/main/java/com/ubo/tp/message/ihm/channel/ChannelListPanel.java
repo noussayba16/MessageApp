@@ -132,21 +132,51 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         Channel channel;
 
-        if (type == 1) {
+        // ===== CANAL PUBLIC =====
+        if (type == 0) {
 
-            // canal privé
             channel = new Channel(
                     session.getConnectedUser(),
-                    name.trim(),
-                    new ArrayList<>()
+                    name.trim()
             );
 
         } else {
 
-            // canal public
+            // ===== CANAL PRIVE =====
+
+            java.util.List<User> allUsers = new ArrayList<>();
+
+            for (User u : dataManager.getUsers()) {
+
+                // ne pas ajouter l'utilisateur connecté
+                if (!u.getUuid().equals(session.getConnectedUser().getUuid())) {
+                    allUsers.add(u);
+                }
+            }
+
+            JList<User> userJList = new JList<>(allUsers.toArray(new User[0]));
+            userJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+
+            int result = JOptionPane.showConfirmDialog(
+                    this,
+                    new JScrollPane(userJList),
+                    "Choisir les utilisateurs du canal privé",
+                    JOptionPane.OK_CANCEL_OPTION
+            );
+
+            if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            ArrayList<User> selectedUsers = new ArrayList<>(userJList.getSelectedValuesList());
+
+            // ajouter le créateur
+            selectedUsers.add(session.getConnectedUser());
+
             channel = new Channel(
                     session.getConnectedUser(),
-                    name.trim()
+                    name.trim(),
+                    selectedUsers
             );
         }
 
