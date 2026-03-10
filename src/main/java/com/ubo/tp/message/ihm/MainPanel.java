@@ -7,7 +7,6 @@ import main.java.com.ubo.tp.message.core.session.Session;
 import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
-import main.java.com.ubo.tp.message.ihm.channel.*;
 import main.java.com.ubo.tp.message.ihm.message.MessageInputPanel;
 import main.java.com.ubo.tp.message.ihm.message.MessageListPanel;
 
@@ -155,12 +154,26 @@ public class MainPanel extends JPanel {
         // ===== CHANNEL SELECTION =====
         channelListPanel.getChannelList().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
+
                 selectedChannel = channelListPanel.getSelectedChannel();
                 selectedUser = null;
 
-                if (selectedChannel != null) {
-                    chargerConversationChannel(selectedChannel);
+                if (selectedChannel == null) {
+                    return;
                 }
+
+                if (!userHasAccess(selectedChannel)) {
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Vous n'avez pas accès à ce canal privé."
+                    );
+
+                    selectedChannel = null;
+                    channelListPanel.getChannelList().clearSelection();
+                    return;
+                }
+
+                chargerConversationChannel(selectedChannel);
             }
         });
 
@@ -207,7 +220,6 @@ public class MainPanel extends JPanel {
 
         for (User u : userController.getAllUsers()) {
 
-            // ignorer les utilisateurs inconnus
             if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
                 continue;
             }
@@ -342,6 +354,7 @@ public class MainPanel extends JPanel {
         verifierNotifications(currentConversation);
     }
 
+    // ================= CHANNEL CONVERSATION =================
     private void chargerConversationChannel(Channel channel) {
 
         User connectedUser = session.getConnectedUser();
@@ -350,35 +363,20 @@ public class MainPanel extends JPanel {
             return;
         }
 
-        // Vérifier l'accès au canal privé
-        if (channel.isPrivate()) {
+        if (!userHasAccess(channel)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Vous n'avez pas accès à ce canal privé."
+            );
 
-            boolean isCreator = channel.getCreator().getUuid()
-                    .equals(connectedUser.getUuid());
-
-            boolean isMember = channel.getUsers()
-                    .stream()
-                    .anyMatch(u -> u.getUuid().equals(connectedUser.getUuid()));
-
-            if (!isCreator && !isMember) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Vous n'avez pas accès à ce canal privé."
-                );
-
-                // Désélectionner le canal pour éviter que le message revienne
-                selectedChannel = null;
-                channelListPanel.getChannelList().clearSelection();
-
-                return;
-            }
+            selectedChannel = null;
+            channelListPanel.getChannelList().clearSelection();
+            return;
         }
 
         Set<Message> nouvelleConversation = new HashSet<>();
 
         for (Message m : dataManager.getMessages()) {
-
             if (m.getRecipient().equals(channel.getUuid())) {
                 nouvelleConversation.add(m);
             }
@@ -393,6 +391,44 @@ public class MainPanel extends JPanel {
         );
 
         verifierNotifications(currentConversation);
+    }
+    private boolean userHasAccess(Channel channel){
+
+        User currentUser = session.getConnectedUser();
+
+        if(currentUser == null || channel == null){
+            return false;
+        }
+
+        // canal public
+        if(!channel.isPrivate()){
+            return true;
+        }
+
+        // créateur
+        if(channel.getCreator().getUuid().equals(currentUser.getUuid())){
+            return true;
+        }
+
+        // membre du canal
+        for(User u : channel.getUsers()){
+            if(u != null && u.getUuid().equals(currentUser.getUuid())){
+                return true;
+            }
+        }
+
+        // vérifier si l'utilisateur a déjà un message dans ce canal
+        for(Message m : dataManager.getMessages()){
+
+            if(m.getRecipient().equals(channel.getUuid())){
+
+                if(m.getSender().getUuid().equals(currentUser.getUuid())){
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
     // ================= SEARCH MESSAGES =================
     private void rechercherMessages() {

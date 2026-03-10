@@ -70,6 +70,10 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         JButton createButton = new JButton("Créer");
         JButton deleteButton = new JButton("Supprimer");
         JButton removeUserButton = new JButton("Retirer utilisateur");
+        JButton leaveButton = new JButton("Quitter canal");
+        leaveButton.addActionListener(e -> leaveChannel());
+
+        buttonPanel.add(leaveButton);
 
         createButton.addActionListener(e -> createChannel());
         deleteButton.addActionListener(e -> deleteChannel());
@@ -84,18 +88,50 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.addObserver(this);
     }
 
-    // ===== CHARGER CANAUX =====
     private void chargerCanaux(String keyword){
 
         model.clear();
 
         String filtre = keyword == null ? "" : keyword.trim().toLowerCase();
+        User currentUser = session.getConnectedUser();
 
         for(Channel channel : dataManager.getChannels()){
 
-            if(filtre.isEmpty() ||
-                    channel.getName().toLowerCase().contains(filtre)){
+            boolean visible = false;
 
+            // canal public
+            if(!channel.isPrivate()){
+                visible = true;
+            }
+
+            // créateur du canal
+            if(channel.getCreator().getUuid().equals(currentUser.getUuid())){
+                visible = true;
+            }
+
+            // membre du canal
+            for(User u : channel.getUsers()){
+                if(u.getUuid().equals(currentUser.getUuid())){
+                    visible = true;
+                    break;
+                }
+            }
+
+            // quelqu'un lui a envoyé un message dans ce canal
+            if(!visible){
+                for(Message m : dataManager.getMessages()){
+                    if(m.getRecipient().equals(channel.getUuid())){
+                        visible = true;
+                        break;
+                    }
+                }
+            }
+
+            if(!visible){
+                continue;
+            }
+
+            if(filtre.isEmpty() || channel.getName().toLowerCase().contains(filtre)){
                 model.addElement(channel);
             }
         }
@@ -105,14 +141,15 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         chargerCanaux(searchField.getText());
     }
 
-    // ===== CREATION CANAL =====
     private void createChannel() {
 
-        String name = JOptionPane.showInputDialog(this,"Nom du canal");
+        String name = JOptionPane.showInputDialog(this, "Nom du canal");
 
-        if (name == null || name.trim().isEmpty()) return;
+        if (name == null || name.trim().isEmpty()) {
+            return;
+        }
 
-        Object[] options = {"Public","Privé"};
+        Object[] options = {"Public", "Privé"};
 
         int type = JOptionPane.showOptionDialog(
                 this,
@@ -125,24 +162,23 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
                 options[0]
         );
 
+        if (type == JOptionPane.CLOSED_OPTION) {
+            return;
+        }
+
         Channel channel;
 
-        if(type == 0){
-
+        if (type == 0) {
             channel = new Channel(
                     session.getConnectedUser(),
                     name.trim()
             );
-
-        }else{
-
+        } else {
             List<User> allUsers = new ArrayList<>();
 
-            for(User u : dataManager.getUsers()){
-
-                if(u.getUserTag().equalsIgnoreCase("<Inconnu>")) continue;
-                if(u.getUuid().equals(session.getConnectedUser().getUuid())) continue;
-
+            for (User u : dataManager.getUsers()) {
+                if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) continue;
+                if (u.getUuid().equals(session.getConnectedUser().getUuid())) continue;
                 allUsers.add(u);
             }
 
@@ -156,11 +192,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
                     JOptionPane.OK_CANCEL_OPTION
             );
 
-            if(result != JOptionPane.OK_OPTION) return;
+            if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
 
-            ArrayList<User> selectedUsers = new ArrayList<>(userJList.getSelectedValuesList());
-
-            selectedUsers.add(session.getConnectedUser());
+            List<User> selectedUsers = new ArrayList<>(userJList.getSelectedValuesList());
 
             channel = new Channel(
                     session.getConnectedUser(),
@@ -171,7 +207,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         dataManager.sendChannel(channel);
     }
-
     private void removeUserFromChannel(){
 
         Channel selected = channelList.getSelectedValue();
@@ -242,7 +277,44 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             }
         }
     }
+    private void leaveChannel(){
 
+        Channel selected = channelList.getSelectedValue();
+
+        if(selected == null){
+            JOptionPane.showMessageDialog(this,"Sélectionnez un canal");
+            return;
+        }
+
+        if(!selected.isPrivate()){
+            JOptionPane.showMessageDialog(this,"Impossible de quitter un canal public");
+            return;
+        }
+
+        User currentUser = session.getConnectedUser();
+
+        // le créateur ne peut pas quitter son canal
+        if(selected.getCreator().getUuid().equals(currentUser.getUuid())){
+            JOptionPane.showMessageDialog(this,"Le créateur ne peut pas quitter son canal");
+            return;
+        }
+
+        java.util.List<User> members = new ArrayList<>(selected.getUsers());
+
+        // retirer l'utilisateur connecté
+        members.removeIf(u -> u.getUuid().equals(currentUser.getUuid()));
+
+        Channel updatedChannel = new Channel(
+                selected.getUuid(),
+                selected.getCreator(),
+                selected.getName(),
+                members
+        );
+
+        dataManager.modifyChannel(selected.getUuid(), updatedChannel);
+
+        JOptionPane.showMessageDialog(this,"Vous avez quitté le canal");
+    }
     // ===== SUPPRIMER CANAL =====
     private void deleteChannel(){
 
