@@ -148,12 +148,18 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
             for (User u : dataManager.getUsers()) {
 
-                // ne pas ajouter l'utilisateur connecté
-                if (!u.getUuid().equals(session.getConnectedUser().getUuid())) {
-                    allUsers.add(u);
+                // ignorer l'utilisateur système <Inconnu>
+                if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
+                    continue;
                 }
-            }
 
+                // ne pas ajouter l'utilisateur connecté
+                if (u.getUuid().equals(session.getConnectedUser().getUuid())) {
+                    continue;
+                }
+
+                allUsers.add(u);
+            }
             JList<User> userJList = new JList<>(allUsers.toArray(new User[0]));
             userJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
