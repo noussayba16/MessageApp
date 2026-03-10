@@ -201,4 +201,18 @@ public class DataManager {
             db.deleteMessage(message);
         }
     }
+    public void modifyChannel(UUID uuid, Channel modifiedChannel) {
+
+        if (modifiedChannel == null) {
+            return;
+        }
+
+        // écrire le canal modifié dans le dossier d'échange
+        mEntityManager.writeChannelFile(modifiedChannel);
+
+        // mettre à jour la base en mémoire
+        if (mDatabase instanceof Database db) {
+            db.modifyChannel(modifiedChannel);
+        }
+    }
 }

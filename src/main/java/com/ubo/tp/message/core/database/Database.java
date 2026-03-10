@@ -223,5 +223,12 @@ public class Database implements IDatabase {
 	}
 
 
+	public void modifyChannel(Channel modifiedChannel) {
 
+		if (modifiedChannel == null) {
+			return;
+		}
+
+		modifiyChannel(modifiedChannel);
+	}
 }

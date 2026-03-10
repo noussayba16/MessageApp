@@ -4,13 +4,13 @@ import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.core.DataManager;
 import main.java.com.ubo.tp.message.core.database.IDatabaseObserver;
 import main.java.com.ubo.tp.message.core.session.Session;
-
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.List;
 
 public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
@@ -21,7 +21,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     private final Session session;
 
     private JTextField searchField;
-    private JButton searchButton;
 
     public ChannelListPanel(DataManager dataManager, Session session) {
 
@@ -30,11 +29,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         setLayout(new BorderLayout());
 
-        // ===== BARRE DE RECHERCHE =====
+        // ===== BARRE RECHERCHE =====
         JPanel searchPanel = new JPanel(new BorderLayout(5,5));
 
         searchField = new JTextField();
-        searchButton = new JButton("Rechercher");
+        JButton searchButton = new JButton("Rechercher");
 
         searchButton.addActionListener(e -> rechercherCanaux());
         searchField.addActionListener(e -> rechercherCanaux());
@@ -44,7 +43,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         add(searchPanel, BorderLayout.NORTH);
 
-        // ===== LISTE DES CANAUX =====
+        // ===== LISTE CANAUX =====
         model = new DefaultListModel<>();
         channelList = new JList<>(model);
 
@@ -61,22 +60,24 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             return panel;
         });
 
-        JScrollPane scrollPane = new JScrollPane(channelList);
-        add(scrollPane, BorderLayout.CENTER);
+        add(new JScrollPane(channelList), BorderLayout.CENTER);
 
         chargerCanaux("");
 
         // ===== BOUTONS =====
-        JPanel buttonPanel = new JPanel(new GridLayout(1,2));
+        JPanel buttonPanel = new JPanel(new GridLayout(1,3,5,5));
 
         JButton createButton = new JButton("Créer");
         JButton deleteButton = new JButton("Supprimer");
+        JButton removeUserButton = new JButton("Retirer utilisateur");
 
         createButton.addActionListener(e -> createChannel());
         deleteButton.addActionListener(e -> deleteChannel());
+        removeUserButton.addActionListener(e -> removeUserFromChannel());
 
         buttonPanel.add(createButton);
         buttonPanel.add(deleteButton);
+        buttonPanel.add(removeUserButton);
 
         add(buttonPanel, BorderLayout.SOUTH);
 
@@ -100,7 +101,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         }
     }
 
-    // ===== RECHERCHE =====
     private void rechercherCanaux(){
         chargerCanaux(searchField.getText());
     }
@@ -108,16 +108,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     // ===== CREATION CANAL =====
     private void createChannel() {
 
-        String name = JOptionPane.showInputDialog(
-                this,
-                "Nom du canal"
-        );
+        String name = JOptionPane.showInputDialog(this,"Nom du canal");
 
-        if (name == null || name.trim().isEmpty()) {
-            return;
-        }
+        if (name == null || name.trim().isEmpty()) return;
 
-        Object[] options = {"Public", "Privé"};
+        Object[] options = {"Public","Privé"};
 
         int type = JOptionPane.showOptionDialog(
                 this,
@@ -132,34 +127,25 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         Channel channel;
 
-        // ===== CANAL PUBLIC =====
-        if (type == 0) {
+        if(type == 0){
 
             channel = new Channel(
                     session.getConnectedUser(),
                     name.trim()
             );
 
-        } else {
+        }else{
 
-            // ===== CANAL PRIVE =====
+            List<User> allUsers = new ArrayList<>();
 
-            java.util.List<User> allUsers = new ArrayList<>();
+            for(User u : dataManager.getUsers()){
 
-            for (User u : dataManager.getUsers()) {
-
-                // ignorer l'utilisateur système <Inconnu>
-                if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
-                    continue;
-                }
-
-                // ne pas ajouter l'utilisateur connecté
-                if (u.getUuid().equals(session.getConnectedUser().getUuid())) {
-                    continue;
-                }
+                if(u.getUserTag().equalsIgnoreCase("<Inconnu>")) continue;
+                if(u.getUuid().equals(session.getConnectedUser().getUuid())) continue;
 
                 allUsers.add(u);
             }
+
             JList<User> userJList = new JList<>(allUsers.toArray(new User[0]));
             userJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
@@ -170,13 +156,10 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
                     JOptionPane.OK_CANCEL_OPTION
             );
 
-            if (result != JOptionPane.OK_OPTION) {
-                return;
-            }
+            if(result != JOptionPane.OK_OPTION) return;
 
             ArrayList<User> selectedUsers = new ArrayList<>(userJList.getSelectedValuesList());
 
-            // ajouter le créateur
             selectedUsers.add(session.getConnectedUser());
 
             channel = new Channel(
@@ -189,26 +172,90 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.sendChannel(channel);
     }
 
-    private void deleteChannel() {
+    private void removeUserFromChannel(){
 
         Channel selected = channelList.getSelectedValue();
 
         if(selected == null){
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Sélectionnez un canal"
-            );
+            JOptionPane.showMessageDialog(this,"Sélectionnez un canal");
             return;
         }
 
-        // Vérification : seul le propriétaire peut supprimer
-        if(!selected.getCreator().getUuid().equals(session.getConnectedUser().getUuid())){
+        if(!selected.isPrivate()){
+            JOptionPane.showMessageDialog(this,"Ce canal n'est pas privé");
+            return;
+        }
 
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Vous ne pouvez supprimer que les canaux dont vous êtes le propriétaire."
-            );
+        if(!selected.getCreator().getUuid().equals(session.getConnectedUser().getUuid())){
+            JOptionPane.showMessageDialog(this,"Seul le propriétaire peut modifier ce canal");
+            return;
+        }
+
+        // construire la liste des utilisateurs supprimables
+        java.util.List<User> members = new ArrayList<>();
+
+        for(User u : dataManager.getUsers()){
+
+            // ignorer utilisateur inconnu
+            if(u.getUserTag().equalsIgnoreCase("<Inconnu>")){
+                continue;
+            }
+
+            // ignorer le créateur
+            if(u.getUuid().equals(selected.getCreator().getUuid())){
+                continue;
+            }
+
+            members.add(u);
+        }
+
+        if(members.isEmpty()){
+            JOptionPane.showMessageDialog(this,"Aucun utilisateur à supprimer");
+            return;
+        }
+
+        JList<User> userList = new JList<>(members.toArray(new User[0]));
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                new JScrollPane(userList),
+                "Supprimer un utilisateur",
+                JOptionPane.OK_CANCEL_OPTION
+        );
+
+        if(result == JOptionPane.OK_OPTION){
+
+            User userToRemove = userList.getSelectedValue();
+
+            if(userToRemove != null){
+
+                members.remove(userToRemove);
+
+                Channel updatedChannel = new Channel(
+                        selected.getUuid(),
+                        selected.getCreator(),
+                        selected.getName(),
+                        members
+                );
+
+                dataManager.modifyChannel(selected.getUuid(), updatedChannel);
+            }
+        }
+    }
+
+    // ===== SUPPRIMER CANAL =====
+    private void deleteChannel(){
+
+        Channel selected = channelList.getSelectedValue();
+
+        if(selected == null){
+            JOptionPane.showMessageDialog(this,"Sélectionnez un canal");
+            return;
+        }
+
+        if(!selected.getCreator().getUuid().equals(session.getConnectedUser().getUuid())){
+            JOptionPane.showMessageDialog(this,
+                    "Vous ne pouvez supprimer que les canaux dont vous êtes le propriétaire.");
             return;
         }
 
@@ -216,55 +263,34 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     }
 
     // ===== GETTERS =====
-    public Channel getSelectedChannel() {
+    public Channel getSelectedChannel(){
         return channelList.getSelectedValue();
     }
 
-    public JList<Channel> getChannelList() {
+    public JList<Channel> getChannelList(){
         return channelList;
     }
 
-    // ===== OBSERVER CHANNEL =====
+    // ===== OBSERVER =====
     @Override
-    public void notifyChannelAdded(Channel addedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+    public void notifyChannelAdded(Channel addedChannel){
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
     @Override
-    public void notifyChannelDeleted(Channel deletedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+    public void notifyChannelDeleted(Channel deletedChannel){
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
     @Override
-    public void notifyChannelModified(Channel modifiedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+    public void notifyChannelModified(Channel modifiedChannel){
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
-    // ===== AUTRES EVENTS =====
-    @Override
-    public void notifyMessageAdded(Message addedMessage) {}
-
-    @Override
-    public void notifyMessageDeleted(Message deletedMessage) {}
-
-    @Override
-    public void notifyMessageModified(Message modifiedMessage) {}
-
-    @Override
-    public void notifyUserAdded(User addedUser) {}
-
-    @Override
-    public void notifyUserDeleted(User deletedUser) {}
-
-    @Override
-    public void notifyUserModified(User modifiedUser) {}
+    @Override public void notifyMessageAdded(Message addedMessage){}
+    @Override public void notifyMessageDeleted(Message deletedMessage){}
+    @Override public void notifyMessageModified(Message modifiedMessage){}
+    @Override public void notifyUserAdded(User addedUser){}
+    @Override public void notifyUserDeleted(User deletedUser){}
+    @Override public void notifyUserModified(User modifiedUser){}
 }

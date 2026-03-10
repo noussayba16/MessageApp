@@ -74,14 +74,24 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	 * @param name        Nom du canal.
 	 * @param users       Liste des utilisateurs du canal privé.
 	 */
-	public Channel(UUID channelUuid, User creator, String name, List<User> users) {
+	public Channel(UUID channelUuid, main.java.com.ubo.tp.message.datamodel.User creator, String name, List<main.java.com.ubo.tp.message.datamodel.User> users) {
+
 		this(channelUuid, creator, name);
-		if (!users.isEmpty()) {
-			mPrivate = true;
-			mUsers.addAll(users);
+
+		// canal privé
+		mPrivate = true;
+
+		// ajouter toujours le créateur
+		mUsers.add(creator);
+
+		if (users != null) {
+			for(main.java.com.ubo.tp.message.datamodel.User u : users) {
+				if(!u.getUuid().equals(creator.getUuid())) {
+					mUsers.add(u);
+				}
+			}
 		}
 	}
-
 	/**
 	 * @return l'utilisateur créateur du canal.
 	 */
