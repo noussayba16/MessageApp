@@ -1,14 +1,16 @@
-package main.java.com.ubo.tp.message.ihm.channel;
+package com.ubo.tp.message.ihm.channel;
 
+import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.core.DataManager;
 import main.java.com.ubo.tp.message.core.database.IDatabaseObserver;
 import main.java.com.ubo.tp.message.core.session.Session;
-import main.java.com.ubo.tp.message.datamodel.Channel;
+
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
 
 public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
@@ -18,6 +20,9 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     private final DataManager dataManager;
     private final Session session;
 
+    private JTextField searchField;
+    private JButton searchButton;
+
     public ChannelListPanel(DataManager dataManager, Session session) {
 
         this.dataManager = dataManager;
@@ -25,15 +30,29 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         setLayout(new BorderLayout());
 
+        // ===== BARRE DE RECHERCHE =====
+        JPanel searchPanel = new JPanel(new BorderLayout(5,5));
+
+        searchField = new JTextField();
+        searchButton = new JButton("Rechercher");
+
+        searchButton.addActionListener(e -> rechercherCanaux());
+        searchField.addActionListener(e -> rechercherCanaux());
+
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        searchPanel.add(searchButton, BorderLayout.EAST);
+
+        add(searchPanel, BorderLayout.NORTH);
+
+        // ===== LISTE DES CANAUX =====
         model = new DefaultListModel<>();
         channelList = new JList<>(model);
 
         channelList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        // Renderer avec ChannelPanel
         channelList.setCellRenderer((list, channel, index, isSelected, cellHasFocus) -> {
 
-            ChannelPanel panel = new ChannelPanel(channel);
+            main.java.com.ubo.tp.message.ihm.channel.ChannelPanel panel = new main.java.com.ubo.tp.message.ihm.channel.ChannelPanel(channel);
 
             if (isSelected) {
                 panel.setBackground(new Color(200,220,255));
@@ -45,13 +64,9 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         JScrollPane scrollPane = new JScrollPane(channelList);
         add(scrollPane, BorderLayout.CENTER);
 
-        // Chargement initial
-        for(Channel channel : dataManager.getChannels()){
-            model.addElement(channel);
-        }
+        chargerCanaux("");
 
         // ===== BOUTONS =====
-
         JPanel buttonPanel = new JPanel(new GridLayout(1,2));
 
         JButton createButton = new JButton("Créer");
@@ -65,12 +80,32 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         add(buttonPanel, BorderLayout.SOUTH);
 
-        // Observer
         dataManager.addObserver(this);
     }
 
-    // ===== CREATION CANAL =====
+    // ===== CHARGER CANAUX =====
+    private void chargerCanaux(String keyword){
 
+        model.clear();
+
+        String filtre = keyword == null ? "" : keyword.trim().toLowerCase();
+
+        for(Channel channel : dataManager.getChannels()){
+
+            if(filtre.isEmpty() ||
+                    channel.getName().toLowerCase().contains(filtre)){
+
+                model.addElement(channel);
+            }
+        }
+    }
+
+    // ===== RECHERCHE =====
+    private void rechercherCanaux(){
+        chargerCanaux(searchField.getText());
+    }
+
+    // ===== CREATION CANAL =====
     private void createChannel() {
 
         String name = JOptionPane.showInputDialog(
@@ -78,19 +113,47 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
                 "Nom du canal"
         );
 
-        if(name == null || name.trim().isEmpty())
+        if (name == null || name.trim().isEmpty()) {
             return;
+        }
 
-        Channel channel = new Channel(
-                session.getConnectedUser(),
-                name.trim()
+        Object[] options = {"Public", "Privé"};
+
+        int type = JOptionPane.showOptionDialog(
+                this,
+                "Type du canal",
+                "Créer un canal",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]
         );
+
+        Channel channel;
+
+        if (type == 1) {
+
+            // canal privé
+            channel = new Channel(
+                    session.getConnectedUser(),
+                    name.trim(),
+                    new ArrayList<>()
+            );
+
+        } else {
+
+            // canal public
+            channel = new Channel(
+                    session.getConnectedUser(),
+                    name.trim()
+            );
+        }
 
         dataManager.sendChannel(channel);
     }
 
     // ===== SUPPRESSION CANAL =====
-
     private void deleteChannel() {
 
         Channel selected = channelList.getSelectedValue();
@@ -108,7 +171,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     }
 
     // ===== GETTERS =====
-
     public Channel getSelectedChannel() {
         return channelList.getSelectedValue();
     }
@@ -118,16 +180,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     }
 
     // ===== OBSERVER CHANNEL =====
-
     @Override
     public void notifyChannelAdded(Channel addedChannel) {
 
         SwingUtilities.invokeLater(() -> {
-
-            model.addElement(addedChannel);
-
-            revalidate();
-            repaint();
+            chargerCanaux(searchField.getText());
         });
     }
 
@@ -135,20 +192,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     public void notifyChannelDeleted(Channel deletedChannel) {
 
         SwingUtilities.invokeLater(() -> {
-
-            for (int i = 0; i < model.size(); i++) {
-
-                Channel c = model.getElementAt(i);
-
-                if (c.getUuid().equals(deletedChannel.getUuid())) {
-
-                    model.removeElementAt(i);
-                    break;
-                }
-            }
-
-            revalidate();
-            repaint();
+            chargerCanaux(searchField.getText());
         });
     }
 
@@ -156,25 +200,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     public void notifyChannelModified(Channel modifiedChannel) {
 
         SwingUtilities.invokeLater(() -> {
-
-            for (int i = 0; i < model.size(); i++) {
-
-                Channel c = model.getElementAt(i);
-
-                if (c.getUuid().equals(modifiedChannel.getUuid())) {
-
-                    model.setElementAt(modifiedChannel, i);
-                    break;
-                }
-            }
-
-            revalidate();
-            repaint();
+            chargerCanaux(searchField.getText());
         });
     }
 
-    // ===== AUTRES EVENTS (NON UTILISÉS ICI) =====
-
+    // ===== AUTRES EVENTS =====
     @Override
     public void notifyMessageAdded(Message addedMessage) {}
 

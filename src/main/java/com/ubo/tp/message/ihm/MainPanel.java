@@ -1,12 +1,13 @@
 package main.java.com.ubo.tp.message.ihm;
 
+import com.ubo.tp.message.ihm.channel.ChannelListPanel;
 import main.java.com.ubo.tp.message.controller.UserController;
 import main.java.com.ubo.tp.message.core.DataManager;
 import main.java.com.ubo.tp.message.core.session.Session;
 import main.java.com.ubo.tp.message.datamodel.Channel;
 import main.java.com.ubo.tp.message.datamodel.Message;
 import main.java.com.ubo.tp.message.datamodel.User;
-import main.java.com.ubo.tp.message.ihm.channel.ChannelListPanel;
+import main.java.com.ubo.tp.message.ihm.channel.*;
 import main.java.com.ubo.tp.message.ihm.message.MessageInputPanel;
 import main.java.com.ubo.tp.message.ihm.message.MessageListPanel;
 
@@ -194,7 +195,6 @@ public class MainPanel extends JPanel {
         }
     }
 
-    // ================= USERS =================
     private void chargerUtilisateurs(String keyword) {
 
         if (session.getConnectedUser() == null) {
@@ -207,13 +207,15 @@ public class MainPanel extends JPanel {
 
         for (User u : userController.getAllUsers()) {
 
-            if (u.getUuid().equals(session.getConnectedUser().getUuid())) {
+            // ignorer les utilisateurs inconnus
+            if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
                 continue;
             }
 
             if (filtre.isEmpty()
                     || u.getUserTag().toLowerCase().contains(filtre)
                     || u.getName().toLowerCase().contains(filtre)) {
+
                 userModel.addElement(u);
             }
         }
