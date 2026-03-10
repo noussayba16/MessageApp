@@ -39,28 +39,37 @@ public class MessagePanel extends JPanel {
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setOpaque(false);
 
-        // texte
+        // ===== TEXTE =====
         if (message.getText() != null && !message.getText().trim().isEmpty()) {
+
             JTextArea textArea = new JTextArea(message.getText());
+
             textArea.setEditable(false);
             textArea.setLineWrap(true);
             textArea.setWrapStyleWord(true);
-            textArea.setFont(new Font("Arial", Font.PLAIN, 13));
+
+            // POLICE QUI SUPPORTE LES EMOJIS
+            textArea.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+
             textArea.setOpaque(false);
             textArea.setBorder(null);
+
             contentPanel.add(textArea);
         }
 
-        // image
+        // ===== IMAGE =====
         if (message.getImagePath() != null && !message.getImagePath().trim().isEmpty()) {
+
             ImageIcon icon = new ImageIcon(message.getImagePath());
             Image img = icon.getImage().getScaledInstance(250, -1, Image.SCALE_SMOOTH);
+
             JLabel imageLabel = new JLabel(new ImageIcon(img));
+
             contentPanel.add(Box.createVerticalStrut(5));
             contentPanel.add(imageLabel);
         }
 
-        // heure
+        // ===== HEURE =====
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
         String time = sdf.format(new Date(message.getEmissionDate()));
 

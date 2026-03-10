@@ -3,8 +3,24 @@ package main.java.com.ubo.tp.message.ihm.message;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MessageInputPanel extends JPanel {
+
+    private static final String[] EMOJI_CODES = {
+            ":smile:",
+            ":smirk:",
+            ":sad:"
+    };
+
+    private static final Map<String, String> EMOJI_MAP = new LinkedHashMap<>();
+
+    static {
+        EMOJI_MAP.put(":smile:", "😄");
+        EMOJI_MAP.put(":smirk:", "😏");
+        EMOJI_MAP.put(":sad:", "😢");
+    }
 
     private JTextField messageField;
     private JButton sendButton;
@@ -14,9 +30,47 @@ public class MessageInputPanel extends JPanel {
 
     public MessageInputPanel() {
 
-        setLayout(new BorderLayout(5,5));
+        setLayout(new BorderLayout(5, 5));
 
         messageField = new JTextField();
+
+        messageField.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyReleased(java.awt.event.KeyEvent e) {
+
+                if (e.getKeyChar() == ':') {
+
+                    JList<String> emojiList = new JList<>(EMOJI_CODES);
+                    emojiList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+                    emojiList.setSelectedIndex(0);
+
+                    int result = JOptionPane.showConfirmDialog(
+                            MessageInputPanel.this,
+                            new JScrollPane(emojiList),
+                            "Choisir un emoji",
+                            JOptionPane.OK_CANCEL_OPTION
+                    );
+
+                    if (result == JOptionPane.OK_OPTION) {
+                        String selectedCode = emojiList.getSelectedValue();
+
+                        if (selectedCode != null) {
+                            String emoji = EMOJI_MAP.get(selectedCode);
+
+                            if (emoji != null) {
+                                String currentText = messageField.getText();
+
+                                if (currentText == null) {
+                                    currentText = "";
+                                }
+
+                                messageField.setText(currentText + emoji);
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         sendButton = new JButton("Envoyer");
         imageButton = new JButton("📷");
@@ -38,7 +92,7 @@ public class MessageInputPanel extends JPanel {
 
         int result = chooser.showOpenDialog(this);
 
-        if(result == JFileChooser.APPROVE_OPTION) {
+        if (result == JFileChooser.APPROVE_OPTION) {
 
             File file = chooser.getSelectedFile();
             selectedImagePath = file.getAbsolutePath();
@@ -56,8 +110,7 @@ public class MessageInputPanel extends JPanel {
 
             String content = messageField.getText();
 
-            if((content == null || content.trim().isEmpty()) && selectedImagePath == null) {
-
+            if ((content == null || content.trim().isEmpty()) && selectedImagePath == null) {
                 JOptionPane.showMessageDialog(
                         this,
                         "Le message est vide"
