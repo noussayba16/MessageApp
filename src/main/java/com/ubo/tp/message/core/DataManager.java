@@ -59,105 +59,77 @@ public class DataManager {
     }
 
     public Set<Message> getMessagesFrom(User user) {
-
         Set<Message> userMessages = new HashSet<>();
-
         for (Message message : getMessages()) {
             if (message.getSender().equals(user)) {
                 userMessages.add(message);
             }
         }
-
         return userMessages;
     }
 
     public Set<Message> getMessagesFrom(User sender, IMessageRecipient recipient) {
-
         Set<Message> userMessages = new HashSet<>();
-
         for (Message message : getMessagesFrom(sender)) {
             if (message.getRecipient().equals(recipient.getUuid())) {
                 userMessages.add(message);
             }
         }
-
         return userMessages;
     }
 
     public Set<Message> getMessagesTo(User user) {
-
         Set<Message> userMessages = new HashSet<>();
-
         for (Message message : getMessages()) {
             if (message.getRecipient().equals(user.getUuid())) {
                 userMessages.add(message);
             }
         }
-
         return userMessages;
     }
 
     public void setExchangeDirectory(String directoryPath) {
-
         mEntityManager.setExchangeDirectory(directoryPath);
-
         mWatchableDirectory = new WatchableDirectory(directoryPath);
         mWatchableDirectory.initWatching();
         mWatchableDirectory.addObserver(mEntityManager);
     }
 
     public User createUser(String tag, String name, String password) {
-
         if (tag == null || tag.trim().isEmpty()) {
             throw new IllegalArgumentException("Le tag est obligatoire.");
         }
-
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Le nom est obligatoire.");
         }
-
         if (getUser(tag) != null) {
             throw new IllegalArgumentException("Ce tag existe déjà.");
         }
-
         User newUser = new User(tag, password, name);
         mEntityManager.writeUserFile(newUser);
-
         return newUser;
     }
 
     public User getUser(String tag) {
-
         for (User user : getUsers()) {
             if (user.getUserTag().equals(tag)) {
                 return user;
             }
         }
-
         return null;
     }
 
     public void modifyUser(UUID uuid, User modifiedUser) {
-
-        if (modifiedUser == null) {
-            return;
-        }
-
+        if (modifiedUser == null) return;
         mEntityManager.writeUserFile(modifiedUser);
-
         if (mDatabase instanceof Database db) {
             db.modifiyUser(modifiedUser);
         }
     }
 
     public void deleteUser(User user) {
-
-        if (user == null) {
-            return;
-        }
-
+        if (user == null) return;
         mEntityManager.deleteUserFile(user);
-
         if (mDatabase instanceof Database db) {
             db.deleteUser(user);
         }
@@ -166,37 +138,39 @@ public class DataManager {
     // ===== CHANNEL =====
 
     public void addChannel(Channel channel) {
-
-        if (channel == null) {
-            return;
-        }
-
+        if (channel == null) return;
         sendChannel(channel);
     }
 
     public void removeChannel(Channel channel) {
-
-        if (channel == null) {
-            return;
-        }
-
+        if (channel == null) return;
         mEntityManager.deleteChannelFile(channel);
-
         if (mDatabase instanceof Database db) {
             db.deleteChannel(channel);
+        }
+    }
+
+    /**
+     * CORRIGÉ : utilise mEntityManager qui a déjà le bon mDirectoryPath
+     * au lieu de créer un nouveau DataFilesManager sans répertoire configuré.
+     */
+    public void modifyChannel(Channel channel) {
+        if (channel == null) return;
+
+        // Réécrit le fichier via l'EntityManager existant (répertoire déjà configuré)
+        mEntityManager.writeChannelFile(channel);
+
+        // Met à jour la base de données et notifie les observers
+        if (mDatabase instanceof Database db) {
+            db.modifiyChannel(channel);
         }
     }
 
     // ===== MESSAGE =====
 
     public void deleteMessage(Message message) {
-
-        if (message == null) {
-            return;
-        }
-
+        if (message == null) return;
         mEntityManager.deleteMessageFile(message);
-
         if (mDatabase instanceof Database db) {
             db.deleteMessage(message);
         }

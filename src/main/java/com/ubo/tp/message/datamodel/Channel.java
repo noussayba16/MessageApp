@@ -55,4 +55,8 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	public String toString() {
 		return "[" + this.getClass().getName() + "] : " + this.getUuid() + " {" + this.getName() + "}";
 	}
+	public void removeUser(User user) {
+		mUsers.removeIf(u -> u.getUuid().equals(user.getUuid()));
+		// Si après retrait il ne reste que le créateur ou personne → rester privé
+	}
 }

@@ -188,7 +188,7 @@ public class Database implements IDatabase {
 	 *
 	 * @param modifiedChannel
 	 */
-	protected void modifiyChannel(Channel channelToModify) {
+	public void modifiyChannel(Channel channelToModify) {
 		// Ré-ajout pour écraser l'ancienne copie.
 		this.mChannels.remove(channelToModify);
 		this.mChannels.add(channelToModify);
