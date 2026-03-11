@@ -10,6 +10,7 @@ import main.java.com.ubo.tp.message.datamodel.User;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.UUID;
 
 public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
@@ -46,17 +47,13 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         // ===== LISTE DES CANAUX =====
         model = new DefaultListModel<>();
         channelList = new JList<>(model);
-
         channelList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         channelList.setCellRenderer((list, channel, index, isSelected, cellHasFocus) -> {
-
             main.java.com.ubo.tp.message.ihm.channel.ChannelPanel panel = new main.java.com.ubo.tp.message.ihm.channel.ChannelPanel(channel);
-
             if (isSelected) {
                 panel.setBackground(new Color(200, 220, 255));
             }
-
             return panel;
         });
 
@@ -82,17 +79,42 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.addObserver(this);
     }
 
+    // ===== HELPER ACCES CANAL =====
+    /**
+     * CORRIGÉ : un canal est visible si :
+     * - il est public
+     * - il est privé ET l'utilisateur connecté en est créateur ou membre
+     */
+    private boolean canAccess(Channel channel) {
+        if (!channel.isPrivate()) {
+            return true;
+        }
+        User connectedUser = session.getConnectedUser();
+        if (connectedUser == null) {
+            return false;
+        }
+        UUID userId = connectedUser.getUuid();
+        if (channel.getCreator().getUuid().equals(userId)) {
+            return true;
+        }
+        return channel.getUsers().stream()
+                .anyMatch(u -> u.getUuid().equals(userId));
+    }
+
     // ===== CHARGER CANAUX =====
     private void chargerCanaux(String keyword) {
-
         model.clear();
 
         String filtre = keyword == null ? "" : keyword.trim().toLowerCase();
 
         for (Channel channel : dataManager.getChannels()) {
 
-            if (filtre.isEmpty() || channel.getName().toLowerCase().contains(filtre)) {
+            // CORRIGÉ : n'affiche pas les canaux privés inaccessibles
+            if (!canAccess(channel)) {
+                continue;
+            }
 
+            if (filtre.isEmpty() || channel.getName().toLowerCase().contains(filtre)) {
                 model.addElement(channel);
             }
         }
@@ -106,10 +128,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     // ===== CREATION CANAL =====
     private void createChannel() {
 
-        String name = JOptionPane.showInputDialog(
-                this,
-                "Nom du canal"
-        );
+        String name = JOptionPane.showInputDialog(this, "Nom du canal");
 
         if (name == null || name.trim().isEmpty()) {
             return;
@@ -130,36 +149,20 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         Channel channel;
 
-        // ===== CANAL PUBLIC =====
         if (type == 0) {
-
-            channel = new Channel(
-                    session.getConnectedUser(),
-                    name.trim()
-            );
+            // ===== CANAL PUBLIC =====
+            channel = new Channel(session.getConnectedUser(), name.trim());
 
         } else {
-
             // ===== CANAL PRIVE =====
-
             java.util.List<User> allUsers = new ArrayList<>();
 
             for (User u : dataManager.getUsers()) {
-
-                // Ignorer l'utilisateur système <Inconnu>
-                if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
-                    continue;
-                }
-
-                // Ne pas ajouter l'utilisateur connecté
-                if (u.getUuid().equals(session.getConnectedUser().getUuid())) {
-                    continue;
-                }
-
+                if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) continue;
+                if (u.getUuid().equals(session.getConnectedUser().getUuid())) continue;
                 allUsers.add(u);
             }
 
-            // Sélection des utilisateurs pour un canal privé
             JList<User> userJList = new JList<>(allUsers.toArray(new User[0]));
             userJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
@@ -175,15 +178,9 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             }
 
             ArrayList<User> selectedUsers = new ArrayList<>(userJList.getSelectedValuesList());
-
-            // Ajouter le créateur (l'utilisateur connecté) dans la liste des membres du canal
             selectedUsers.add(session.getConnectedUser());
 
-            channel = new Channel(
-                    session.getConnectedUser(),
-                    name.trim(),
-                    selectedUsers
-            );
+            channel = new Channel(session.getConnectedUser(), name.trim(), selectedUsers);
         }
 
         dataManager.sendChannel(channel);
@@ -195,17 +192,11 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         Channel selected = channelList.getSelectedValue();
 
         if (selected == null) {
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Sélectionnez un canal"
-            );
+            JOptionPane.showMessageDialog(this, "Sélectionnez un canal");
             return;
         }
 
-        // Vérification : seul le propriétaire peut supprimer
         if (!selected.getCreator().getUuid().equals(session.getConnectedUser().getUuid())) {
-
             JOptionPane.showMessageDialog(
                     this,
                     "Vous ne pouvez supprimer que les canaux dont vous êtes le propriétaire."
@@ -225,32 +216,22 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         return channelList;
     }
 
-    // ===== OBSERVER CANAL =====
+    // ===== OBSERVER =====
     @Override
     public void notifyChannelAdded(Channel addedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
     @Override
     public void notifyChannelDeleted(Channel deletedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
     @Override
     public void notifyChannelModified(Channel modifiedChannel) {
-
-        SwingUtilities.invokeLater(() -> {
-            chargerCanaux(searchField.getText());
-        });
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
     }
 
-    // ===== AUTRES EVENTS =====
     @Override
     public void notifyMessageAdded(Message addedMessage) {}
 
@@ -267,5 +248,9 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
     public void notifyUserDeleted(User deletedUser) {}
 
     @Override
-    public void notifyUserModified(User modifiedUser) {}
+    public void notifyUserModified(User modifiedUser) {
+        // Recharger la liste si l'utilisateur connecté est modifié
+        // (ses droits d'accès aux canaux peuvent avoir changé)
+        SwingUtilities.invokeLater(() -> chargerCanaux(searchField.getText()));
+    }
 }
