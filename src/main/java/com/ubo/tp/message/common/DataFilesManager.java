@@ -23,6 +23,7 @@ public class DataFilesManager {
 	protected static final String PROPERTY_KEY_MESSAGE_RECIPIENT = "Recipient";
 	protected static final String PROPERTY_KEY_MESSAGE_DATE = "Date";
 	protected static final String PROPERTY_KEY_MESSAGE_TEXT = "Text";
+	protected static final String PROPERTY_KEY_MESSAGE_IMAGE = "ImagePath"; // ← NOUVEAU
 	protected static final String PROPERTY_KEY_CHANNEL_CREATOR = "Creator";
 	protected static final String PROPERTY_KEY_CHANNEL_USERS = "Users";
 	protected static final String PROPERTY_KEY_CHANNEL_PRIVATE = "Private";
@@ -71,11 +72,7 @@ public class DataFilesManager {
 		properties.setProperty(PROPERTY_KEY_UUID, channel.getUuid().toString());
 		properties.setProperty(PROPERTY_KEY_NAME, channel.getName());
 		properties.setProperty(PROPERTY_KEY_CHANNEL_CREATOR, channel.getCreator().getUuid().toString());
-
-		// CORRIGÉ : sauvegarde les UUIDs des membres (pas leur toString())
 		properties.setProperty(PROPERTY_KEY_CHANNEL_USERS, this.getUsersAsString(channel.getUsers()));
-
-		// CORRIGÉ : sauvegarde le flag private pour pouvoir le relire
 		properties.setProperty(PROPERTY_KEY_CHANNEL_PRIVATE, String.valueOf(channel.isPrivate()));
 
 		PropertiesManager.writeProperties(properties, destFileName);
@@ -90,26 +87,23 @@ public class DataFilesManager {
 
 			Properties properties = PropertiesManager.loadProperties(channelFile.getAbsolutePath());
 
-			String uuid         = properties.getProperty(PROPERTY_KEY_UUID, UUID.randomUUID().toString());
-			String channelName  = properties.getProperty(PROPERTY_KEY_NAME, "NoName");
+			String uuid           = properties.getProperty(PROPERTY_KEY_UUID, UUID.randomUUID().toString());
+			String channelName    = properties.getProperty(PROPERTY_KEY_NAME, "NoName");
 			String channelCreator = properties.getProperty(PROPERTY_KEY_CHANNEL_CREATOR,
 					Constants.UNKNONWN_USER_UUID.toString());
-			String channelUsers = properties.getProperty(PROPERTY_KEY_CHANNEL_USERS, "");
-			boolean isPrivate   = Boolean.parseBoolean(
+			String channelUsers   = properties.getProperty(PROPERTY_KEY_CHANNEL_USERS, "");
+			boolean isPrivate     = Boolean.parseBoolean(
 					properties.getProperty(PROPERTY_KEY_CHANNEL_PRIVATE, "false"));
 
 			User creator = getUserFromUuid(channelCreator, userMap);
 			List<User> allUsers = this.getUsersFromString(channelUsers, userMap);
 
 			if (isPrivate) {
-				// Canal privé : utilise le constructeur avec liste de membres
 				channel = new Channel(UUID.fromString(uuid), creator, channelName, allUsers);
 			} else {
-				// Canal public
 				channel = new Channel(UUID.fromString(uuid), creator, channelName);
 			}
 
-			// CORRIGÉ : garantit que le créateur est toujours dans mUsers
 			channel.ensureCreatorIsMember();
 		}
 
@@ -117,6 +111,25 @@ public class DataFilesManager {
 	}
 
 	// ===== MESSAGE =====
+	public void writeMessageFile(Message message) {
+		Properties properties = new Properties();
+		String destFileName = this.getFileName(message.getUuid(), Constants.MESSAGE_FILE_EXTENSION);
+
+		properties.setProperty(PROPERTY_KEY_UUID, message.getUuid().toString());
+		properties.setProperty(PROPERTY_KEY_MESSAGE_SENDER, message.getSender().getUuid().toString());
+		properties.setProperty(PROPERTY_KEY_MESSAGE_RECIPIENT, message.getRecipient().toString());
+		properties.setProperty(PROPERTY_KEY_MESSAGE_DATE, String.valueOf(message.getEmissionDate()));
+		properties.setProperty(PROPERTY_KEY_MESSAGE_TEXT,
+				message.getText() != null ? message.getText() : "");
+
+		// CORRIGÉ : sauvegarde le chemin de l'image
+		if (message.getImagePath() != null && !message.getImagePath().trim().isEmpty()) {
+			properties.setProperty(PROPERTY_KEY_MESSAGE_IMAGE, message.getImagePath());
+		}
+
+		PropertiesManager.writeProperties(properties, destFileName);
+	}
+
 	public Message readMessage(File messageFile, Map<UUID, User> userMap) {
 		Message message = null;
 
@@ -126,34 +139,31 @@ public class DataFilesManager {
 
 			Properties properties = PropertiesManager.loadProperties(messageFile.getAbsolutePath());
 
-			String uuid           = properties.getProperty(PROPERTY_KEY_UUID, UUID.randomUUID().toString());
-			String senderUuid     = properties.getProperty(PROPERTY_KEY_MESSAGE_SENDER,
+			String uuid            = properties.getProperty(PROPERTY_KEY_UUID, UUID.randomUUID().toString());
+			String senderUuid      = properties.getProperty(PROPERTY_KEY_MESSAGE_SENDER,
 					Constants.UNKNONWN_USER_UUID.toString());
-			String recipientUuid  = properties.getProperty(PROPERTY_KEY_MESSAGE_RECIPIENT,
+			String recipientUuid   = properties.getProperty(PROPERTY_KEY_MESSAGE_RECIPIENT,
 					Constants.UNKNONWN_USER_UUID.toString());
 			String emissionDateStr = properties.getProperty(PROPERTY_KEY_MESSAGE_DATE, "0");
-			String text           = properties.getProperty(PROPERTY_KEY_MESSAGE_TEXT, "NoText");
+			String text            = properties.getProperty(PROPERTY_KEY_MESSAGE_TEXT, "");
+
+			// CORRIGÉ : lit le chemin de l'image (null si absent)
+			String imagePath       = properties.getProperty(PROPERTY_KEY_MESSAGE_IMAGE, null);
 
 			User sender = getUserFromUuid(senderUuid, userMap);
 			long emissionDate = Long.valueOf(emissionDateStr);
 
-			message = new Message(UUID.fromString(uuid), sender, UUID.fromString(recipientUuid), emissionDate, text);
+			message = new Message(
+					UUID.fromString(uuid),
+					sender,
+					UUID.fromString(recipientUuid),
+					emissionDate,
+					text,
+					imagePath  // ← CORRIGÉ
+			);
 		}
 
 		return message;
-	}
-
-	public void writeMessageFile(Message message) {
-		Properties properties = new Properties();
-		String destFileName = this.getFileName(message.getUuid(), Constants.MESSAGE_FILE_EXTENSION);
-
-		properties.setProperty(PROPERTY_KEY_UUID, message.getUuid().toString());
-		properties.setProperty(PROPERTY_KEY_MESSAGE_SENDER, message.getSender().getUuid().toString());
-		properties.setProperty(PROPERTY_KEY_MESSAGE_RECIPIENT, message.getRecipient().toString());
-		properties.setProperty(PROPERTY_KEY_MESSAGE_DATE, String.valueOf(message.getEmissionDate()));
-		properties.setProperty(PROPERTY_KEY_MESSAGE_TEXT, message.getText());
-
-		PropertiesManager.writeProperties(properties, destFileName);
 	}
 
 	// ===== HELPERS =====
@@ -173,14 +183,12 @@ public class DataFilesManager {
 		this.mDirectoryPath = directoryPath;
 	}
 
-	/**
-	 * CORRIGÉ : sauvegarde les UUID des membres, pas leur toString()
-	 */
+	// CORRIGÉ : sauvegarde les UUID des membres
 	protected String getUsersAsString(List<User> users) {
 		StringBuilder sb = new StringBuilder();
 		Iterator<User> iterator = users.iterator();
 		while (iterator.hasNext()) {
-			sb.append(iterator.next().getUuid().toString()); // ← était user.toString() = BUG
+			sb.append(iterator.next().getUuid().toString());
 			if (iterator.hasNext()) {
 				sb.append(USER_SEPARATOR);
 			}

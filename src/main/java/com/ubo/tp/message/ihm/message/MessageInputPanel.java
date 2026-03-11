@@ -64,7 +64,7 @@ public class MessageInputPanel extends JPanel {
                                     currentText = "";
                                 }
 
-                                // CORRIGÉ : supprime le ":" tapé avant d'ajouter l'emoji
+                                // Supprime le ":" tapé avant d'ajouter l'emoji
                                 if (currentText.endsWith(":")) {
                                     currentText = currentText.substring(0, currentText.length() - 1);
                                 }
@@ -73,7 +73,7 @@ public class MessageInputPanel extends JPanel {
                             }
                         }
                     } else {
-                        // Annulé : supprime aussi le ":" tapé
+                        // Annulé : supprime le ":" tapé
                         String currentText = messageField.getText();
                         if (currentText != null && currentText.endsWith(":")) {
                             messageField.setText(currentText.substring(0, currentText.length() - 1));
@@ -97,21 +97,33 @@ public class MessageInputPanel extends JPanel {
     }
 
     private void chooseImage() {
+        // CORRIGÉ : utilise SwingUtilities.invokeLater + parent Window
+        // pour éviter le NullPointerException du JFileChooser sur Windows
+        SwingUtilities.invokeLater(() -> {
 
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Choisir une image");
+            // Récupère la fenêtre parente pour éviter le bug de focus
+            Window parentWindow = SwingUtilities.getWindowAncestor(this);
 
-        int result = chooser.showOpenDialog(this);
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Choisir une image");
 
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File file = chooser.getSelectedFile();
-            selectedImagePath = file.getAbsolutePath();
+            // Filtre pour n'afficher que les images
+            chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                    "Images (jpg, png, gif, bmp)", "jpg", "jpeg", "png", "gif", "bmp"
+            ));
 
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Image sélectionnée : " + file.getName()
-            );
-        }
+            int result = chooser.showOpenDialog(parentWindow);
+
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File file = chooser.getSelectedFile();
+                selectedImagePath = file.getAbsolutePath();
+
+                JOptionPane.showMessageDialog(
+                        parentWindow,
+                        "Image sélectionnée : " + file.getName()
+                );
+            }
+        });
     }
 
     public void setSendAction(Runnable action) {
