@@ -69,7 +69,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         JButton createButton  = new JButton("Créer");
         JButton deleteButton  = new JButton("Supprimer");
         JButton leaveButton   = new JButton("Quitter");
-        JButton manageButton  = new JButton("retirer membres");
+        JButton manageButton  = new JButton("Gérer membres");
 
         createButton.addActionListener(e -> createChannel());
         deleteButton.addActionListener(e -> deleteChannel());
@@ -266,7 +266,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         User connectedUser = session.getConnectedUser();
 
-        // Seul le propriétaire peut gérer les membres
         if (!selected.getCreator().getUuid().equals(connectedUser.getUuid())) {
             JOptionPane.showMessageDialog(
                     this,
@@ -283,9 +282,37 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             return;
         }
 
-        // Récupère les membres SAUF le propriétaire (on ne peut pas se retirer soi-même)
-        List<User> membres = new ArrayList<>();
-        for (User u : selected.getUsers()) {
+        // ===== CHOIX ACTION =====
+        Object[] options = {"Ajouter un membre", "Retirer un membre"};
+
+        int action = JOptionPane.showOptionDialog(
+                this,
+                "Que voulez-vous faire ?",
+                "Gérer les membres de #" + selected.getName(),
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]
+        );
+
+        if (action == 0) {
+            // ===== AJOUTER =====
+            ajouterMembre(selected);
+        } else if (action == 1) {
+            // ===== RETIRER =====
+            retirerMembre(selected);
+        }
+    }
+
+    // ===== RETIRER MEMBRE =====
+    private void retirerMembre(Channel channel) {
+
+        User connectedUser = session.getConnectedUser();
+
+        // Membres sauf le propriétaire
+        java.util.List<User> membres = new java.util.ArrayList<>();
+        for (User u : channel.getUsers()) {
             if (!u.getUuid().equals(connectedUser.getUuid())) {
                 membres.add(u);
             }
@@ -299,7 +326,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             return;
         }
 
-        // Affiche la liste des membres avec sélection multiple
         JList<User> membreJList = new JList<>(membres.toArray(new User[0]));
         membreJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
@@ -312,24 +338,83 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         if (result != JOptionPane.OK_OPTION) return;
 
-        List<User> aRetirer = membreJList.getSelectedValuesList();
+        java.util.List<User> aRetirer = membreJList.getSelectedValuesList();
 
         if (aRetirer.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Aucun membre sélectionné.");
             return;
         }
 
-        // Retire chaque membre sélectionné
         for (User u : aRetirer) {
-            selected.removeUser(u);
+            channel.removeUser(u);
         }
 
-        dataManager.modifyChannel(selected);
+        dataManager.modifyChannel(channel);
         chargerCanaux(searchField.getText());
 
         JOptionPane.showMessageDialog(
                 this,
                 aRetirer.size() + " membre(s) retiré(s) du canal."
+        );
+    }
+    private void ajouterMembre(Channel channel) {
+
+        User connectedUser = session.getConnectedUser();
+
+        // Utilisateurs qui ne sont PAS encore membres
+        java.util.List<User> nonMembres = new java.util.ArrayList<>();
+
+        for (User u : dataManager.getUsers()) {
+            if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) continue;
+            if (u.getUuid().equals(connectedUser.getUuid())) continue;
+
+            // Vérifier qu'il n'est pas déjà membre
+            boolean dejaMembre = channel.getUsers().stream()
+                    .anyMatch(m -> m.getUuid().equals(u.getUuid()));
+
+            if (!dejaMembre) {
+                nonMembres.add(u);
+            }
+        }
+
+        if (nonMembres.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Tous les utilisateurs sont déjà membres de ce canal."
+            );
+            return;
+        }
+
+        JList<User> userJList = new JList<>(nonMembres.toArray(new User[0]));
+        userJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                new JScrollPane(userJList),
+                "Choisir les membres à ajouter",
+                JOptionPane.OK_CANCEL_OPTION
+        );
+
+        if (result != JOptionPane.OK_OPTION) return;
+
+        java.util.List<User> aAjouter = userJList.getSelectedValuesList();
+
+        if (aAjouter.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Aucun membre sélectionné.");
+            return;
+        }
+
+        // Ajoute chaque membre sélectionné
+        for (User u : aAjouter) {
+            channel.addUser(u);
+        }
+
+        dataManager.modifyChannel(channel);
+        chargerCanaux(searchField.getText());
+
+        JOptionPane.showMessageDialog(
+                this,
+                aAjouter.size() + " membre(s) ajouté(s) au canal."
         );
     }
 

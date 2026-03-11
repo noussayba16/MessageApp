@@ -12,7 +12,10 @@ import main.java.com.ubo.tp.message.ihm.message.MessageInputPanel;
 import main.java.com.ubo.tp.message.ihm.message.MessageListPanel;
 
 import javax.swing.*;
+//import java.awt.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -407,6 +410,11 @@ public class MainPanel extends JPanel {
         );
 
         verifierNotifications(currentConversation);
+        // Après currentConversation = nouvelleConversation;
+// Pour une conv privée, seuls les 2 participants sont mentionnables
+        List<User> mentionnables = new ArrayList<>();
+        mentionnables.add(user);
+        messageInputPanel.setMentionnableUsers(mentionnables);
     }
 
     // ================= CHANNEL CONVERSATION =================
@@ -439,6 +447,33 @@ public class MainPanel extends JPanel {
         );
 
         verifierNotifications(currentConversation);
+
+        // ===== MENTIONNABLES =====
+        List<User> mentionnables = new ArrayList<>();
+
+        if (channel.isPrivate()) {
+            // Canal privé : membres du canal, retrouvés par UUID dans dataManager
+            for (User membre : channel.getUsers()) {
+                for (User u : dataManager.getUsers()) {
+                    if (u.getUuid().equals(membre.getUuid())
+                            && !u.getUuid().equals(connectedUser.getUuid())
+                            && !u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
+                        mentionnables.add(u);
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Canal public : tous les utilisateurs sauf moi et inconnu
+            for (User u : dataManager.getUsers()) {
+                if (!u.getUuid().equals(connectedUser.getUuid())
+                        && !u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
+                    mentionnables.add(u);
+                }
+            }
+        }
+
+        messageInputPanel.setMentionnableUsers(mentionnables);
     }
 
     // ================= SEARCH MESSAGES =================
@@ -575,6 +610,7 @@ public class MainPanel extends JPanel {
 
             notifiedMessages.add(m.getUuid().toString());
 
+            // ===== NOTIFICATION MESSAGE PRIVÉ (conversation utilisateur) =====
             if (selectedUser != null
                     && m.getSender().getUuid().equals(selectedUser.getUuid())
                     && m.getRecipient().equals(connectedUser.getUuid())) {
@@ -585,12 +621,25 @@ public class MainPanel extends JPanel {
                 );
             }
 
+            // ===== NOTIFICATION MESSAGE CANAL =====
+            if (selectedChannel != null
+                    && m.getRecipient().equals(selectedChannel.getUuid())) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Nouveau message dans #" + selectedChannel.getName()
+                                + " de " + m.getSender().getUserTag()
+                );
+            }
+
+            // ===== NOTIFICATION MENTION @ =====
             if (m.getText() != null
                     && m.getText().contains("@" + connectedUser.getUserTag())) {
 
                 JOptionPane.showMessageDialog(
                         this,
-                        "Vous avez été mentionné dans un message."
+                        "Vous avez été mentionné par " + m.getSender().getUserTag()
+                                + " dans un message."
                 );
             }
         }

@@ -1,9 +1,12 @@
 package main.java.com.ubo.tp.message.ihm.message;
 
+import main.java.com.ubo.tp.message.datamodel.User;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MessageInputPanel extends JPanel {
@@ -28,16 +31,18 @@ public class MessageInputPanel extends JPanel {
 
     private String selectedImagePath;
 
+    // ← NOUVEAU : liste des utilisateurs mentionnables
+    private List<User> mentionnableUsers;
+
     public MessageInputPanel() {
-
         setLayout(new BorderLayout(5, 5));
-
         messageField = new JTextField();
 
         messageField.addKeyListener(new java.awt.event.KeyAdapter() {
             @Override
             public void keyReleased(java.awt.event.KeyEvent e) {
 
+                // ===== EMOJI =====
                 if (e.getKeyChar() == ':') {
 
                     JList<String> emojiList = new JList<>(EMOJI_CODES);
@@ -53,32 +58,28 @@ public class MessageInputPanel extends JPanel {
 
                     if (result == JOptionPane.OK_OPTION) {
                         String selectedCode = emojiList.getSelectedValue();
-
                         if (selectedCode != null) {
                             String emoji = EMOJI_MAP.get(selectedCode);
-
                             if (emoji != null) {
                                 String currentText = messageField.getText();
-
-                                if (currentText == null) {
-                                    currentText = "";
-                                }
-
-                                // Supprime le ":" tapé avant d'ajouter l'emoji
+                                if (currentText == null) currentText = "";
                                 if (currentText.endsWith(":")) {
                                     currentText = currentText.substring(0, currentText.length() - 1);
                                 }
-
                                 messageField.setText(currentText + emoji);
                             }
                         }
                     } else {
-                        // Annulé : supprime le ":" tapé
                         String currentText = messageField.getText();
                         if (currentText != null && currentText.endsWith(":")) {
                             messageField.setText(currentText.substring(0, currentText.length() - 1));
                         }
                     }
+                }
+
+                // ===== MENTION @ =====
+                if (e.getKeyChar() == '@') {
+                    afficherMentions();
                 }
             }
         });
@@ -96,28 +97,82 @@ public class MessageInputPanel extends JPanel {
         imageButton.addActionListener(e -> chooseImage());
     }
 
+    // ===== MENTION @ =====
+    private void afficherMentions() {
+
+        if (mentionnableUsers == null || mentionnableUsers.isEmpty()) {
+            // Pas d'utilisateurs disponibles : on garde juste le @
+            return;
+        }
+
+        // Affiche la liste des utilisateurs mentionnables
+        JList<User> userJList = new JList<>(mentionnableUsers.toArray(new User[0]));
+        userJList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        userJList.setSelectedIndex(0);
+
+        // Renderer pour afficher tag + nom
+        userJList.setCellRenderer((list, value, index, isSelected, cellHasFocus) -> {
+            JLabel label = new JLabel("@" + value.getUserTag() + " (" + value.getName() + ")");
+            label.setOpaque(true);
+            label.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+            if (isSelected) {
+                label.setBackground(new Color(51, 153, 255));
+                label.setForeground(Color.WHITE);
+            } else {
+                label.setBackground(Color.WHITE);
+                label.setForeground(Color.BLACK);
+            }
+            return label;
+        });
+
+        int result = JOptionPane.showConfirmDialog(
+                MessageInputPanel.this,
+                new JScrollPane(userJList),
+                "Mentionner un utilisateur",
+                JOptionPane.OK_CANCEL_OPTION
+        );
+
+        String currentText = messageField.getText();
+        if (currentText == null) currentText = "";
+
+        if (result == JOptionPane.OK_OPTION) {
+            User selectedUser = userJList.getSelectedValue();
+            if (selectedUser != null) {
+                // Supprime le "@" déjà tapé et insère @tag
+                if (currentText.endsWith("@")) {
+                    currentText = currentText.substring(0, currentText.length() - 1);
+                }
+                messageField.setText(currentText + "@" + selectedUser.getUserTag() + " ");
+            }
+        } else {
+            // Annulé : supprime le "@" tapé
+            if (currentText.endsWith("@")) {
+                messageField.setText(currentText.substring(0, currentText.length() - 1));
+            }
+        }
+    }
+
+    // ===== SETTER liste des utilisateurs mentionnables =====
+    /**
+     * Appelé depuis MainPanel pour mettre à jour la liste
+     * des utilisateurs mentionnables selon le canal/utilisateur sélectionné.
+     */
+    public void setMentionnableUsers(List<User> users) {
+        this.mentionnableUsers = users;
+    }
+
     private void chooseImage() {
-        // CORRIGÉ : utilise SwingUtilities.invokeLater + parent Window
-        // pour éviter le NullPointerException du JFileChooser sur Windows
         SwingUtilities.invokeLater(() -> {
-
-            // Récupère la fenêtre parente pour éviter le bug de focus
             Window parentWindow = SwingUtilities.getWindowAncestor(this);
-
             JFileChooser chooser = new JFileChooser();
             chooser.setDialogTitle("Choisir une image");
-
-            // Filtre pour n'afficher que les images
             chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
                     "Images (jpg, png, gif, bmp)", "jpg", "jpeg", "png", "gif", "bmp"
             ));
-
             int result = chooser.showOpenDialog(parentWindow);
-
             if (result == JFileChooser.APPROVE_OPTION) {
                 File file = chooser.getSelectedFile();
                 selectedImagePath = file.getAbsolutePath();
-
                 JOptionPane.showMessageDialog(
                         parentWindow,
                         "Image sélectionnée : " + file.getName()
@@ -127,21 +182,13 @@ public class MessageInputPanel extends JPanel {
     }
 
     public void setSendAction(Runnable action) {
-
         sendButton.addActionListener(e -> {
-
             String content = messageField.getText();
-
             if ((content == null || content.trim().isEmpty()) && selectedImagePath == null) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le message est vide"
-                );
+                JOptionPane.showMessageDialog(this, "Le message est vide");
                 return;
             }
-
             action.run();
-
             messageField.setText("");
             selectedImagePath = null;
         });
