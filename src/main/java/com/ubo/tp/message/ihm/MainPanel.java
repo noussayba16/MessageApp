@@ -108,6 +108,58 @@ public class MainPanel extends JPanel {
         userList = new JList<>(userModel);
         userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
+        // ===== RENDERER AVEC INDICATEUR EN LIGNE/HORS LIGNE =====
+        userList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                                                          int index, boolean isSelected, boolean cellHasFocus) {
+
+                JPanel panel = new JPanel(new BorderLayout(8, 0));
+                panel.setOpaque(true);
+
+                User u = (User) value;
+                boolean isOnline = isUserOnline(u);
+
+                // Point indicateur vert/rouge
+                JLabel indicator = new JLabel("●") {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(getForeground());
+                        g2.fillOval(0, (getHeight() - 12) / 2, 12, 12);
+                        g2.dispose();
+                    }
+                    @Override
+                    public Dimension getPreferredSize() {
+                        return new Dimension(14, 14);
+                    }
+                };
+                indicator.setForeground(isOnline ? new Color(34, 197, 94) : new Color(200, 200, 200));
+
+                // Nom + tag + statut
+                String statut = isOnline ? "en ligne" : "hors ligne";
+                JLabel nameLabel = new JLabel(u.getName() + " - " + u.getUserTag()
+                        + " (" + statut + ")");
+                nameLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+
+                panel.add(indicator, BorderLayout.WEST);
+                panel.add(nameLabel, BorderLayout.CENTER);
+                panel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+
+                if (isSelected) {
+                    panel.setBackground(new Color(51, 153, 255));
+                    nameLabel.setForeground(Color.WHITE);
+                } else {
+                    panel.setBackground(index % 2 == 0 ? Color.WHITE : new Color(245, 245, 245));
+                    nameLabel.setForeground(Color.BLACK);
+                }
+
+                return panel;
+            }
+        });
+
         chargerUtilisateurs("");
 
         JScrollPane userScroll = new JScrollPane(userList);
@@ -175,10 +227,37 @@ public class MainPanel extends JPanel {
         refreshTimer.start();
     }
 
-    // ================= HELPER ACCES CANAL =================
+    // ================= INDICATEUR EN LIGNE =================
     /**
-     * Vérifie l'accès par UUID — fonctionne même après modifyUser/reconnexion.
+     * Un utilisateur est "en ligne" si son fichier .usr existe dans la base
+     * ET qu'il est la session connectée courante, OU si la session active
+     * correspond à cet utilisateur.
+     * On détecte la présence via le UserController qui lit les fichiers du répertoire.
      */
+    private boolean isUserOnline(User user) {
+        if (user == null) return false;
+
+        // L'utilisateur connecté actuellement sur CETTE instance
+        User connectedUser = session.getConnectedUser();
+        if (connectedUser != null && connectedUser.getUuid().equals(user.getUuid())) {
+            return true;
+        }
+
+        // Détection multi-instance : on vérifie si le tag contient "(en ligne)"
+        // tel qu'affiché — sinon on se base sur le UserController
+        for (User u : userController.getAllUsers()) {
+            if (u.getUuid().equals(user.getUuid())) {
+                // Si le nom contient "(en ligne)" c'est qu'une autre instance l'a marqué
+                if (u.getName() != null && u.getName().contains("(en ligne)")) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // ================= HELPER ACCES CANAL =================
     private boolean hasChannelAccess(Channel channel, User user) {
         if (!channel.isPrivate()) {
             return true;
@@ -203,6 +282,10 @@ public class MainPanel extends JPanel {
             stopRefreshTimer();
             return;
         }
+
+        // Rafraîchit aussi la liste utilisateurs pour mettre à jour les indicateurs
+        chargerUtilisateurs(userSearchField.getText());
+
         if (selectedUser != null) {
             chargerConversationUser(selectedUser);
         } else if (selectedChannel != null) {
@@ -214,6 +297,9 @@ public class MainPanel extends JPanel {
         if (session.getConnectedUser() == null) {
             return;
         }
+
+        // Sauvegarde la sélection courante
+        User previousSelection = userList.getSelectedValue();
 
         userModel.clear();
 
@@ -229,6 +315,16 @@ public class MainPanel extends JPanel {
                 userModel.addElement(u);
             }
         }
+
+        // Restaure la sélection après rechargement
+        if (previousSelection != null) {
+            for (int i = 0; i < userModel.getSize(); i++) {
+                if (userModel.getElementAt(i).getUuid().equals(previousSelection.getUuid())) {
+                    userList.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
     }
 
     private void rechercherUtilisateur() {
@@ -238,9 +334,7 @@ public class MainPanel extends JPanel {
     private void modifierMonNom() {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null) {
-            return;
-        }
+        if (connectedUser == null) return;
 
         String nouveauNom = JOptionPane.showInputDialog(
                 this,
@@ -248,9 +342,7 @@ public class MainPanel extends JPanel {
                 connectedUser.getName()
         );
 
-        if (nouveauNom == null) {
-            return;
-        }
+        if (nouveauNom == null) return;
 
         nouveauNom = nouveauNom.trim();
 
@@ -275,9 +367,7 @@ public class MainPanel extends JPanel {
     private void supprimerMonCompte() {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null) {
-            return;
-        }
+        if (connectedUser == null) return;
 
         int choix = JOptionPane.showConfirmDialog(
                 this,
@@ -286,9 +376,7 @@ public class MainPanel extends JPanel {
                 JOptionPane.YES_NO_OPTION
         );
 
-        if (choix != JOptionPane.YES_OPTION) {
-            return;
-        }
+        if (choix != JOptionPane.YES_OPTION) return;
 
         stopRefreshTimer();
         dataManager.deleteUser(connectedUser);
@@ -300,9 +388,7 @@ public class MainPanel extends JPanel {
     private void chargerConversationUser(User user) {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null || user == null) {
-            return;
-        }
+        if (connectedUser == null || user == null) return;
 
         Set<Message> nouvelleConversation = new HashSet<>();
 
@@ -327,16 +413,10 @@ public class MainPanel extends JPanel {
     private void chargerConversationChannel(Channel channel) {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null || channel == null) {
-            return;
-        }
+        if (connectedUser == null || channel == null) return;
 
-        // ===== VÉRIFICATION D'ACCÈS (comparaison par UUID) =====
         if (!hasChannelAccess(channel, connectedUser)) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Vous n'avez pas accès à ce canal privé."
-            );
+            JOptionPane.showMessageDialog(this, "Vous n'avez pas accès à ce canal privé.");
             selectedChannel = null;
             channelListPanel.getChannelList().clearSelection();
             return;
@@ -365,9 +445,7 @@ public class MainPanel extends JPanel {
     private void rechercherMessages() {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null) {
-            return;
-        }
+        if (connectedUser == null) return;
 
         String keyword = searchField.getText();
 
@@ -400,9 +478,7 @@ public class MainPanel extends JPanel {
     private void envoyerMessage() {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null) {
-            return;
-        }
+        if (connectedUser == null) return;
 
         String content = messageInputPanel.getMessageText();
         String imagePath = messageInputPanel.getImagePath();
@@ -410,22 +486,14 @@ public class MainPanel extends JPanel {
         if (content == null) content = "";
 
         if (content.length() > 200) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Un message ne peut pas dépasser 200 caractères."
-            );
+            JOptionPane.showMessageDialog(this, "Un message ne peut pas dépasser 200 caractères.");
             return;
         }
 
-        if (content.trim().isEmpty() && imagePath == null) {
-            return;
-        }
+        if (content.trim().isEmpty() && imagePath == null) return;
 
         if (selectedUser == null && selectedChannel == null) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Sélectionnez un utilisateur ou un canal !"
-            );
+            JOptionPane.showMessageDialog(this, "Sélectionnez un utilisateur ou un canal !");
             return;
         }
 
@@ -446,7 +514,6 @@ public class MainPanel extends JPanel {
             );
 
         } else {
-            // ===== VÉRIFICATION D'ACCÈS CANAL (comparaison par UUID) =====
             if (!hasChannelAccess(selectedChannel, connectedUser)) {
                 JOptionPane.showMessageDialog(
                         this,
@@ -462,26 +529,18 @@ public class MainPanel extends JPanel {
                     imagePath
             );
             dataManager.sendMessage(message);
-
-            // Recharger pour afficher tous les messages à jour
             chargerConversationChannel(selectedChannel);
         }
-        // Note : le champ texte est déjà vidé par setSendAction dans MessageInputPanel
     }
 
     // ================= DELETE MESSAGE =================
     private void supprimerMessage(Message message) {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null || message == null) {
-            return;
-        }
+        if (connectedUser == null || message == null) return;
 
         if (!message.getSender().getUuid().equals(connectedUser.getUuid())) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Vous ne pouvez supprimer que vos propres messages."
-            );
+            JOptionPane.showMessageDialog(this, "Vous ne pouvez supprimer que vos propres messages.");
             return;
         }
 
@@ -492,9 +551,7 @@ public class MainPanel extends JPanel {
                 JOptionPane.YES_NO_OPTION
         );
 
-        if (choix != JOptionPane.YES_OPTION) {
-            return;
-        }
+        if (choix != JOptionPane.YES_OPTION) return;
 
         dataManager.deleteMessage(message);
         currentConversation.remove(message);
@@ -510,18 +567,11 @@ public class MainPanel extends JPanel {
     private void verifierNotifications(Set<Message> messages) {
         User connectedUser = session.getConnectedUser();
 
-        if (connectedUser == null) {
-            return;
-        }
+        if (connectedUser == null) return;
 
         for (Message m : new HashSet<>(messages)) {
-            if (m.getSender().getUuid().equals(connectedUser.getUuid())) {
-                continue;
-            }
-
-            if (notifiedMessages.contains(m.getUuid().toString())) {
-                continue;
-            }
+            if (m.getSender().getUuid().equals(connectedUser.getUuid())) continue;
+            if (notifiedMessages.contains(m.getUuid().toString())) continue;
 
             notifiedMessages.add(m.getUuid().toString());
 
