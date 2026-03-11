@@ -1,0 +1,7 @@
+#
+#Wed Mar 11 10:29:44 GMT+01:00 2026
+Date=1773221384425
+Recipient=6bce9203-cc7e-4a34-b3ae-7b6846aba0e9
+Sender=750ffabb-5472-4824-ae72-81596ad69277
+Text=oui
+UUID=067abf2c-4522-4917-b091-290ca0cdfcc5
