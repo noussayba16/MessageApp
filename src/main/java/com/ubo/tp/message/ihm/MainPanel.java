@@ -15,6 +15,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 public class MainPanel extends JPanel {
 
@@ -89,7 +90,7 @@ public class MainPanel extends JPanel {
 
         add(topPanel, BorderLayout.NORTH);
 
-        // ===== USERS PANEL + SEARCH USER =====
+        // ===== USERS PANEL =====
         JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
         leftPanel.setPreferredSize(new Dimension(240, 0));
 
@@ -174,6 +175,22 @@ public class MainPanel extends JPanel {
         refreshTimer.start();
     }
 
+    // ================= HELPER ACCES CANAL =================
+    /**
+     * Vérifie l'accès par UUID — fonctionne même après modifyUser/reconnexion.
+     */
+    private boolean hasChannelAccess(Channel channel, User user) {
+        if (!channel.isPrivate()) {
+            return true;
+        }
+        UUID userId = user.getUuid();
+        if (channel.getCreator().getUuid().equals(userId)) {
+            return true;
+        }
+        return channel.getUsers().stream()
+                .anyMatch(u -> u.getUuid().equals(userId));
+    }
+
     private void stopRefreshTimer() {
         if (refreshTimer != null && refreshTimer.isRunning()) {
             refreshTimer.stop();
@@ -182,12 +199,10 @@ public class MainPanel extends JPanel {
 
     // ================= AUTO REFRESH =================
     private void rafraichirMessages() {
-
         if (session.getConnectedUser() == null) {
             stopRefreshTimer();
             return;
         }
-
         if (selectedUser != null) {
             chargerConversationUser(selectedUser);
         } else if (selectedChannel != null) {
@@ -196,7 +211,6 @@ public class MainPanel extends JPanel {
     }
 
     private void chargerUtilisateurs(String keyword) {
-
         if (session.getConnectedUser() == null) {
             return;
         }
@@ -206,16 +220,12 @@ public class MainPanel extends JPanel {
         String filtre = keyword == null ? "" : keyword.trim().toLowerCase();
 
         for (User u : userController.getAllUsers()) {
-
-            // ignorer les utilisateurs inconnus
             if (u.getUserTag().equalsIgnoreCase("<Inconnu>")) {
                 continue;
             }
-
             if (filtre.isEmpty()
                     || u.getUserTag().toLowerCase().contains(filtre)
                     || u.getName().toLowerCase().contains(filtre)) {
-
                 userModel.addElement(u);
             }
         }
@@ -226,7 +236,6 @@ public class MainPanel extends JPanel {
     }
 
     private void modifierMonNom() {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null) {
@@ -246,10 +255,7 @@ public class MainPanel extends JPanel {
         nouveauNom = nouveauNom.trim();
 
         if (nouveauNom.isEmpty()) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Le nom ne peut pas être vide."
-            );
+            JOptionPane.showMessageDialog(this, "Le nom ne peut pas être vide.");
             return;
         }
 
@@ -261,19 +267,12 @@ public class MainPanel extends JPanel {
         );
 
         dataManager.modifyUser(connectedUser.getUuid(), userModifie);
-
         lblWelcome.setText("Bienvenue " + nouveauNom + " !");
-
-        JOptionPane.showMessageDialog(
-                this,
-                "Nom modifié avec succès."
-        );
-
+        JOptionPane.showMessageDialog(this, "Nom modifié avec succès.");
         chargerUtilisateurs(userSearchField.getText());
     }
 
     private void supprimerMonCompte() {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null) {
@@ -293,18 +292,12 @@ public class MainPanel extends JPanel {
 
         stopRefreshTimer();
         dataManager.deleteUser(connectedUser);
-
-        JOptionPane.showMessageDialog(
-                this,
-                "Votre compte a été supprimé."
-        );
-
+        JOptionPane.showMessageDialog(this, "Votre compte a été supprimé.");
         session.disconnect();
     }
 
     // ================= USER CONVERSATION =================
     private void chargerConversationUser(User user) {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null || user == null) {
@@ -313,23 +306,11 @@ public class MainPanel extends JPanel {
 
         Set<Message> nouvelleConversation = new HashSet<>();
 
-        Set<Message> sent = dataManager.getMessagesFrom(
-                connectedUser,
-                user
-        );
+        Set<Message> sent = dataManager.getMessagesFrom(connectedUser, user);
+        Set<Message> received = dataManager.getMessagesFrom(user, connectedUser);
 
-        Set<Message> received = dataManager.getMessagesFrom(
-                user,
-                connectedUser
-        );
-
-        if (sent != null) {
-            nouvelleConversation.addAll(sent);
-        }
-
-        if (received != null) {
-            nouvelleConversation.addAll(received);
-        }
+        if (sent != null) nouvelleConversation.addAll(sent);
+        if (received != null) nouvelleConversation.addAll(received);
 
         currentConversation = nouvelleConversation;
 
@@ -342,43 +323,28 @@ public class MainPanel extends JPanel {
         verifierNotifications(currentConversation);
     }
 
+    // ================= CHANNEL CONVERSATION =================
     private void chargerConversationChannel(Channel channel) {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null || channel == null) {
             return;
         }
 
-        // Vérifier l'accès au canal privé
-        if (channel.isPrivate()) {
-
-            boolean isCreator = channel.getCreator().getUuid()
-                    .equals(connectedUser.getUuid());
-
-            boolean isMember = channel.getUsers()
-                    .stream()
-                    .anyMatch(u -> u.getUuid().equals(connectedUser.getUuid()));
-
-            if (!isCreator && !isMember) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Vous n'avez pas accès à ce canal privé."
-                );
-
-                // Désélectionner le canal pour éviter que le message revienne
-                selectedChannel = null;
-                channelListPanel.getChannelList().clearSelection();
-
-                return;
-            }
+        // ===== VÉRIFICATION D'ACCÈS (comparaison par UUID) =====
+        if (!hasChannelAccess(channel, connectedUser)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Vous n'avez pas accès à ce canal privé."
+            );
+            selectedChannel = null;
+            channelListPanel.getChannelList().clearSelection();
+            return;
         }
 
         Set<Message> nouvelleConversation = new HashSet<>();
 
         for (Message m : dataManager.getMessages()) {
-
             if (m.getRecipient().equals(channel.getUuid())) {
                 nouvelleConversation.add(m);
             }
@@ -394,9 +360,9 @@ public class MainPanel extends JPanel {
 
         verifierNotifications(currentConversation);
     }
+
     // ================= SEARCH MESSAGES =================
     private void rechercherMessages() {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null) {
@@ -417,8 +383,8 @@ public class MainPanel extends JPanel {
         Set<Message> filtered = new HashSet<>();
 
         for (Message m : new HashSet<>(currentConversation)) {
-            if (m.getText() != null &&
-                    m.getText().toLowerCase().contains(keyword.toLowerCase())) {
+            if (m.getText() != null
+                    && m.getText().toLowerCase().contains(keyword.toLowerCase())) {
                 filtered.add(m);
             }
         }
@@ -430,9 +396,8 @@ public class MainPanel extends JPanel {
         );
     }
 
-    // ================= SEND MESSAGE =================
+    // ================= ENVOYER MESSAGE =================
     private void envoyerMessage() {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null) {
@@ -442,9 +407,7 @@ public class MainPanel extends JPanel {
         String content = messageInputPanel.getMessageText();
         String imagePath = messageInputPanel.getImagePath();
 
-        if (content == null) {
-            content = "";
-        }
+        if (content == null) content = "";
 
         if (content.length() > 200) {
             JOptionPane.showMessageDialog(
@@ -458,27 +421,7 @@ public class MainPanel extends JPanel {
             return;
         }
 
-        Message message;
-
-        if (selectedUser != null) {
-            message = new Message(
-                    connectedUser,
-                    selectedUser.getUuid(),
-                    content.trim(),
-                    imagePath
-            );
-            dataManager.sendMessage(message);
-
-        } else if (selectedChannel != null) {
-            message = new Message(
-                    connectedUser,
-                    selectedChannel.getUuid(),
-                    content.trim(),
-                    imagePath
-            );
-            dataManager.sendMessage(message);
-
-        } else {
+        if (selectedUser == null && selectedChannel == null) {
             JOptionPane.showMessageDialog(
                     this,
                     "Sélectionnez un utilisateur ou un canal !"
@@ -486,18 +429,48 @@ public class MainPanel extends JPanel {
             return;
         }
 
-        currentConversation.add(message);
+        if (selectedUser != null) {
+            Message message = new Message(
+                    connectedUser,
+                    selectedUser.getUuid(),
+                    content.trim(),
+                    imagePath
+            );
+            dataManager.sendMessage(message);
+            currentConversation.add(message);
 
-        messageListPanel.refresh(
-                currentConversation,
-                connectedUser.getUserTag(),
-                this::supprimerMessage
-        );
+            messageListPanel.refresh(
+                    currentConversation,
+                    connectedUser.getUserTag(),
+                    this::supprimerMessage
+            );
+
+        } else {
+            // ===== VÉRIFICATION D'ACCÈS CANAL (comparaison par UUID) =====
+            if (!hasChannelAccess(selectedChannel, connectedUser)) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Vous n'avez pas l'autorisation d'envoyer des messages dans ce canal privé."
+                );
+                return;
+            }
+
+            Message message = new Message(
+                    connectedUser,
+                    selectedChannel.getUuid(),
+                    content.trim(),
+                    imagePath
+            );
+            dataManager.sendMessage(message);
+
+            // Recharger pour afficher tous les messages à jour
+            chargerConversationChannel(selectedChannel);
+        }
+        // Note : le champ texte est déjà vidé par setSendAction dans MessageInputPanel
     }
 
     // ================= DELETE MESSAGE =================
     private void supprimerMessage(Message message) {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null || message == null) {
@@ -535,17 +508,13 @@ public class MainPanel extends JPanel {
 
     // ================= NOTIFICATIONS =================
     private void verifierNotifications(Set<Message> messages) {
-
         User connectedUser = session.getConnectedUser();
 
         if (connectedUser == null) {
             return;
         }
 
-        Set<Message> copie = new HashSet<>(messages);
-
-        for (Message m : copie) {
-
+        for (Message m : new HashSet<>(messages)) {
             if (m.getSender().getUuid().equals(connectedUser.getUuid())) {
                 continue;
             }

@@ -1,7 +1,0 @@
-#
-#Tue Mar 10 17:35:24 GMT+01:00 2026
-Date=1773160524447
-Recipient=bc3d3e31-af77-420b-a052-320fc9d443c7
-Sender=750ffabb-5472-4824-ae72-81596ad69277
-Text=hey
-UUID=9ec0a866-824a-455b-b457-a8f78d2731c7

@@ -6,76 +6,30 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Classe du modèle représentant un canal.
- *
- * @author S.Lucas
- */
 public class Channel extends AbstractMessageAppObject implements IMessageRecipient {
 
-	/**
-	 * Créateur du canal.
-	 */
 	protected final User mCreator;
-
-	/**
-	 * Nom du canal.
-	 */
 	protected final String mName;
-
-	/**
-	 * Statut privé ou public du canal.
-	 */
 	protected boolean mPrivate;
+	protected final Set<User> mUsers = new HashSet<>();
 
-	/**
-	 * Liste des Utilisateurs du canal.
-	 */
-	protected final Set<User> mUsers = new HashSet<User>();
-
-	/**
-	 * Constructeur.
-	 *
-	 * @param creator utilisateur à l'origine du canal.
-	 * @param name   Nom du canal.
-	 */
 	public Channel(User creator, String name) {
 		this(UUID.randomUUID(), creator, name);
 	}
 
-	/**
-	 * Constructeur.
-	 *
-	 * @param channelUuid identifiant du canal.
-	 * @param creator      utilisateur à l'origine du canal.
-	 * @param name        Nom du canal.
-	 */
 	public Channel(UUID channelUuid, User creator, String name) {
 		super(channelUuid);
 		mCreator = creator;
 		mName = name;
 	}
 
-	/**
-	 * Constructeur pour un canal privé.
-	 *
-	 * @param creator utilisateur à l'origine du canal.
-	 * @param name   Nom du canal.
-	 */
 	public Channel(User creator, String name, List<User> users) {
 		this(UUID.randomUUID(), creator, name, users);
 	}
 
-	/**
-	 * Constructeur pour un canal privé.
-	 *
-	 * @param channelUuid identifiant du canal.
-	 * @param creator      utilisateur à l'origine du canal.
-	 * @param name        Nom du canal.
-	 * @param users       Liste des utilisateurs du canal privé.
-	 */
 	public Channel(UUID channelUuid, User creator, String name, List<User> users) {
 		this(channelUuid, creator, name);
+		mUsers.add(creator); // ← créateur toujours ajouté en premier
 		if (!users.isEmpty()) {
 			mPrivate = true;
 			mUsers.addAll(users);
@@ -83,48 +37,22 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 	}
 
 	/**
-	 * @return l'utilisateur créateur du canal.
+	 * CORRECTIF : garantit que le créateur est toujours dans mUsers.
+	 * Appelé après chargement depuis le disque pour réparer les anciens canaux.
 	 */
-	public User getCreator() {
-		return mCreator;
+	public void ensureCreatorIsMember() {
+		if (mCreator != null) {
+			mUsers.add(mCreator);
+		}
 	}
 
-	/**
-	 * @return le nom du canal.
-	 */
-	public String getName() {
-		return mName;
-	}
+	public User getCreator() { return mCreator; }
+	public String getName() { return mName; }
+	public List<User> getUsers() { return new ArrayList<>(mUsers); }
+	public boolean isPrivate() { return mPrivate; }
 
-	/**
-	 * @return la liste des utilisateurs de ce canal.
-	 */
-	public List<User> getUsers() {
-		return new ArrayList<User>(mUsers);
-	}
-
-	/**
-	 * @return true si le canal est privé, sinon false.
-	 */
-	public boolean isPrivate() {
-		return mPrivate;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
 	@Override
 	public String toString() {
-		StringBuffer sb = new StringBuffer();
-
-		sb.append("[");
-		sb.append(this.getClass().getName());
-		sb.append("] : ");
-		sb.append(this.getUuid());
-		sb.append(" {");
-		sb.append(this.getName());
-		sb.append("}");
-
-		return sb.toString();
+		return "[" + this.getClass().getName() + "] : " + this.getUuid() + " {" + this.getName() + "}";
 	}
 }

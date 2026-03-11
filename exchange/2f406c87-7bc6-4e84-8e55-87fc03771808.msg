@@ -1,7 +1,0 @@
-#
-#Wed Mar 11 10:31:40 GMT+01:00 2026
-Date=1773221500914
-Recipient=99c10138-7e07-4cb0-898d-577f5f1f41b0
-Sender=6bce9203-cc7e-4a34-b3ae-7b6846aba0e9
-Text=aaaaaaaaaaa
-UUID=2f406c87-7bc6-4e84-8e55-87fc03771808
