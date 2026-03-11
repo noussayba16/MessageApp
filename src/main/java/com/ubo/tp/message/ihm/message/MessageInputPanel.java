@@ -64,8 +64,19 @@ public class MessageInputPanel extends JPanel {
                                     currentText = "";
                                 }
 
+                                // CORRIGÉ : supprime le ":" tapé avant d'ajouter l'emoji
+                                if (currentText.endsWith(":")) {
+                                    currentText = currentText.substring(0, currentText.length() - 1);
+                                }
+
                                 messageField.setText(currentText + emoji);
                             }
+                        }
+                    } else {
+                        // Annulé : supprime aussi le ":" tapé
+                        String currentText = messageField.getText();
+                        if (currentText != null && currentText.endsWith(":")) {
+                            messageField.setText(currentText.substring(0, currentText.length() - 1));
                         }
                     }
                 }
@@ -93,7 +104,6 @@ public class MessageInputPanel extends JPanel {
         int result = chooser.showOpenDialog(this);
 
         if (result == JFileChooser.APPROVE_OPTION) {
-
             File file = chooser.getSelectedFile();
             selectedImagePath = file.getAbsolutePath();
 
