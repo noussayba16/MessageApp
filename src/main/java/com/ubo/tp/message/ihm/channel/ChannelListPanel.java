@@ -64,19 +64,22 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         chargerCanaux("");
 
         // ===== BOUTONS =====
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 4, 4));
 
-        JButton createButton = new JButton("Créer");
-        JButton deleteButton = new JButton("Supprimer");
-        JButton leaveButton  = new JButton("Quitter");
+        JButton createButton  = new JButton("Créer");
+        JButton deleteButton  = new JButton("Supprimer");
+        JButton leaveButton   = new JButton("Quitter");
+        JButton manageButton  = new JButton("retirer membres");
 
         createButton.addActionListener(e -> createChannel());
         deleteButton.addActionListener(e -> deleteChannel());
         leaveButton.addActionListener(e -> leaveChannel());
+        manageButton.addActionListener(e -> gererMembres());
 
         buttonPanel.add(createButton);
         buttonPanel.add(deleteButton);
         buttonPanel.add(leaveButton);
+        buttonPanel.add(manageButton);
 
         add(buttonPanel, BorderLayout.SOUTH);
 
@@ -141,11 +144,8 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         Channel channel;
 
         if (type == 0) {
-            // ===== CANAL PUBLIC =====
             channel = new Channel(session.getConnectedUser(), name.trim());
-
         } else {
-            // ===== CANAL PRIVE =====
             List<User> allUsers = new ArrayList<>();
 
             for (User u : dataManager.getUsers()) {
@@ -175,7 +175,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.sendChannel(channel);
     }
 
-    // ===== SUPPRESSION CANAL (propriétaire uniquement) =====
+    // ===== SUPPRESSION CANAL =====
     private void deleteChannel() {
 
         Channel selected = channelList.getSelectedValue();
@@ -207,7 +207,7 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
         dataManager.removeChannel(selected);
     }
 
-    // ===== QUITTER CANAL (membre non propriétaire) =====
+    // ===== QUITTER CANAL =====
     private void leaveChannel() {
 
         Channel selected = channelList.getSelectedValue();
@@ -219,7 +219,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         User connectedUser = session.getConnectedUser();
 
-        // Le propriétaire ne peut pas quitter, seulement supprimer
         if (selected.getCreator().getUuid().equals(connectedUser.getUuid())) {
             JOptionPane.showMessageDialog(
                     this,
@@ -228,7 +227,6 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
             return;
         }
 
-        // Vérifier que l'utilisateur est bien membre
         boolean isMember = selected.getUsers().stream()
                 .anyMatch(u -> u.getUuid().equals(connectedUser.getUuid()));
 
@@ -246,18 +244,92 @@ public class ChannelListPanel extends JPanel implements IDatabaseObserver {
 
         if (choix != JOptionPane.YES_OPTION) return;
 
-        // CORRIGÉ : retire l'utilisateur de la liste des membres
         selected.removeUser(connectedUser);
-
-        // Sauvegarde le canal mis à jour sur le disque
         dataManager.modifyChannel(selected);
-
-        // Recharger la liste (le canal disparaît puisqu'on n'y a plus accès)
         chargerCanaux(searchField.getText());
 
         JOptionPane.showMessageDialog(
                 this,
                 "Vous avez quitté le canal \"" + selected.getName() + "\"."
+        );
+    }
+
+    // ===== GERER MEMBRES (propriétaire uniquement) =====
+    private void gererMembres() {
+
+        Channel selected = channelList.getSelectedValue();
+
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Sélectionnez un canal.");
+            return;
+        }
+
+        User connectedUser = session.getConnectedUser();
+
+        // Seul le propriétaire peut gérer les membres
+        if (!selected.getCreator().getUuid().equals(connectedUser.getUuid())) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Seul le propriétaire peut gérer les membres."
+            );
+            return;
+        }
+
+        if (!selected.isPrivate()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Ce canal est public, il n'a pas de membres à gérer."
+            );
+            return;
+        }
+
+        // Récupère les membres SAUF le propriétaire (on ne peut pas se retirer soi-même)
+        List<User> membres = new ArrayList<>();
+        for (User u : selected.getUsers()) {
+            if (!u.getUuid().equals(connectedUser.getUuid())) {
+                membres.add(u);
+            }
+        }
+
+        if (membres.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Ce canal n'a aucun autre membre."
+            );
+            return;
+        }
+
+        // Affiche la liste des membres avec sélection multiple
+        JList<User> membreJList = new JList<>(membres.toArray(new User[0]));
+        membreJList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                new JScrollPane(membreJList),
+                "Sélectionnez les membres à retirer",
+                JOptionPane.OK_CANCEL_OPTION
+        );
+
+        if (result != JOptionPane.OK_OPTION) return;
+
+        List<User> aRetirer = membreJList.getSelectedValuesList();
+
+        if (aRetirer.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Aucun membre sélectionné.");
+            return;
+        }
+
+        // Retire chaque membre sélectionné
+        for (User u : aRetirer) {
+            selected.removeUser(u);
+        }
+
+        dataManager.modifyChannel(selected);
+        chargerCanaux(searchField.getText());
+
+        JOptionPane.showMessageDialog(
+                this,
+                aRetirer.size() + " membre(s) retiré(s) du canal."
         );
     }
 

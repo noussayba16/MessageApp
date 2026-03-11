@@ -59,4 +59,5 @@ public class Channel extends AbstractMessageAppObject implements IMessageRecipie
 		mUsers.removeIf(u -> u.getUuid().equals(user.getUuid()));
 		// Si après retrait il ne reste que le créateur ou personne → rester privé
 	}
+
 }
